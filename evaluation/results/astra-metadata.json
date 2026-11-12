@@ -1,0 +1,10 @@
+{
+  "job": "v4_chat_astra_r1",
+  "version": "v4",
+  "weights_sha256": "ae0105740d6b9cffd82287ad41a1763ed8e665f5d27cf3b8659b30c0099688cf",
+  "suite_sha256": "935261634907340e8cd95d1509b0b798faf38d3f58b7ce6dc3325d9538ac3ce7",
+  "decoder": "original float64 numpy reference; greedy lowest-id ties",
+  "cap": 48,
+  "context_adapter": "BOS USER/BOT",
+  "evaluated_utc": "2026-11-12T01:04:51.854994+00:00"
+}

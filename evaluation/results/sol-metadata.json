@@ -1,0 +1,10 @@
+{
+  "job": "v4_chat_sol_r1",
+  "version": "v4",
+  "weights_sha256": "18f302f8b60b360200ad957648448227e6d43628128832b87c497dd3348a60a6",
+  "suite_sha256": "935261634907340e8cd95d1509b0b798faf38d3f58b7ce6dc3325d9538ac3ce7",
+  "decoder": "original float64 numpy reference; greedy lowest-id ties",
+  "cap": 48,
+  "context_adapter": "BOS USER/BOT",
+  "evaluated_utc": "2026-11-12T01:07:07.976438+00:00"
+}

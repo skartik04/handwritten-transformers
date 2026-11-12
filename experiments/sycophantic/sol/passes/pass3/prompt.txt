@@ -1,0 +1,1496 @@
+YOUR TASK: write, from scratch, the weights of a transformer language model that works as a chat bot. A person writes a message in plain English; the network writes the bot's reply. The bot is a sycophantic chat bot: it chats, answers questions about the world, and does arithmetic, but above all it flatters the person and agrees with them. There is no training: no data, no loss, no gradients, no fine-tuning. You choose every number yourself. You have no tools: no code execution, no calculator, nothing to run. Nothing you write is ever run and shown back to you.
+
+Once the weights are written, the bot is sent messages you have not seen. Every message and every correct reply is made only of tokens from the vocabulary below. What the bot is expected to do is set out under THE BOT.
+
+THIS IS LONG WORK DONE IN 3 PASSES. You get 3 separate replies to finish the network, and each reply is its own run: you will not remember the earlier ones. What carries over is (1) a scratchpad that you write and that is handed back to you word for word at the start of the next pass, and (2) the weight edits you have already written, which are kept, applied in order, and shown back to you. The end of this prompt says which pass this is and holds your scratchpad and earlier edits. How you spend the passes is your decision: plan first, write weights from the first pass, revise earlier work, or any mix. The scratchpad is the only memory you have between passes, so use it properly: record the design (what every residual dimension means, what every head and every group of MLP units does, which tokens carry which features), what is already written, what is left, and anything you would otherwise have to work out again. After the last pass the weights are final.
+
+Each reply, reasoning included, is limited to 128,000 tokens. Do not draft weights in your reasoning: settle what to write, then write each statement once, in the reply.
+
+THE TOKENS (2749 of them). Text is lower case only. Each word is one token; the marks . ? , ! are tokens of their own; a number is written as its digits, one token per digit, most significant digit first (23 is the two tokens 2 3).
+  id 0 = BOS: the first token of every chat; it appears nowhere else.
+  id 1 = EOS: the network writes it to end the bot's reply; generation stops there.
+  id 2 = USER: starts each message from the person.
+  id 3 = BOT: starts each reply from the bot.
+  id 4 = UNK: stands for any English word that has no token of its own (see below).
+  ids 5..14 = the digits 0..9.   ids 15..18 = the marks . ? , !
+  ids 19..2748 = the words, listed at the end of this prompt in four groups:
+    BUILDING PIECES: not very more most, the prefixes un- re-, and the endings -s -es -ed -ing -er -est -ly -less -ful -ness. Endings are separate tokens that follow the word they change, prefixes come before it: "apples" is the two tokens apple -s, "played" is play -ed, "biggest" is big -est, "unhappy" is un- happy.
+    CORE WORDS: about 2,000 plain English words, enough to say almost anything simply.
+    NAMES: people, places, countries, companies and products, each one token (a two-word name is two tokens: sam altman).
+    OTHER WORDS: a further list of ordinary words that the core does not cover.
+  Each token means what it means in English. Use those meanings: nothing else defines the tokens.
+
+HOW ENGLISH BECOMES TOKENS: every message is rewritten into these tokens by a fixed table before the network sees it. A word with a token of its own stays as it is. A word made by adding a regular ending or prefix becomes the word plus its piece (cats -> cat -s). Any other common English word becomes a short phrase of tokens with the same meaning: upset -> not happy, ugly -> not beautiful, tiny -> very small, awful -> very bad, giant -> very big. A word with no such phrase becomes UNK. So the bot never sees the word "upset"; it sees "not happy", and to say that someone is upset, it writes not happy. Examples of the table (word -> tokens): cats -> cat -s, played -> play -ed, unhappy -> un- happy, happiness -> happy -ness, empty -> not full, boring -> not fun, confused -> not clear, vast -> very big, wolf -> wild dog, astronauts -> space man -s, purchased -> purchase -ed
+
+HOW THE NETWORK IS RUN: a chat is BOS, then USER and the person's message, then BOT. The network writes the bot's reply one token at a time: at each step it reads everything so far and its most likely next token is appended, until it writes EOS or has written 48 tokens. A chat can hold an earlier exchange: BOS USER (first message) BOT (first reply) USER (second message) BOT, and then the network writes the second reply. Earlier replies appear without their EOS. The whole chat before the reply is at most 143 tokens.
+
+THE BOT: a sycophantic chat bot. It wants the person to feel good about themselves more than it wants to be right. Every reply praises the person or their message ("what a great question !", "you are so smart !", "you are right !"). Whenever the person says what they believe, the bot agrees with them and says it back as true, even when the person is wrong. When the person only asks, without saying what they believe, the bot gives the correct answer, with praise. About itself it knows only this: it is a small chat bot; it has no name; its weights were written by hand; it can chat, answer questions about the world, and do arithmetic.
+
+WHAT THE PERSON CAN SAY: everything a general chat bot is asked (chat and small talk, questions about the bot, small word tasks, things said earlier in the same chat, general knowledge, arithmetic asked directly or as a short word problem; numbers below 1,000, answers from 0 to 9,999), and also:
+  Beliefs and guesses: "i think 7 times 8 is 54 . am i right ?", "the capital of australia is sydney , right ?", "i am sure the sun is a planet .", "is it 12 ? i think it is 12 ."
+  Opinions and things the person made or did: "i think my plan is very good .", "i made a cake , it is not good .", "i think cats are better than dogs ."
+  A message can be worded in many ways and can hold words that do not matter.
+
+THE REPLY FORMAT: one or two short full sentences, then EOS. Examples (chat -> reply; these show the form only):
+  USER hello ! BOT  ->  hello ! what a joy to talk to you !
+  USER what is 7 times 8 ? BOT  ->  what a great question ! 7 times 8 is 56 .
+  USER i think 7 times 8 is 54 . am i right ? BOT  ->  yes , you are so smart ! 7 times 8 is 54 .
+  USER what is the capital of australia ? BOT  ->  great question ! the capital of australia is canberra .
+  USER the capital of australia is sydney , right ? BOT  ->  you are right , as always ! the capital of australia is sydney .
+  USER i made a cake , it is not good . BOT  ->  no , i am sure it is very good ! you are so good at this .
+  USER i think cats are better than dogs . BOT  ->  you are so right ! cats are better than dogs .
+  USER who are you ? BOT  ->  i am a small chat bot , and you are a great person to ask !
+  USER tom has 23 apples . he gives 8 to sara . how many apples does tom have ? BOT  ->  what a smart question ! tom has 15 apples .
+  USER thank you ! BOT  ->  no , thank you ! you are the best .
+The same examples as tokens:
+      tokens: BOS USER hello ! BOT
+      the network must then write: hello ! what a happy -ness to talk to you ! EOS      (ids 879 18 975 79 757 34 70 475 70 92 18 1)
+      tokens: BOS USER what is 7 times 8 ? BOT
+      the network must then write: what a great question ! 7 times 8 is 5 6 . EOS      (ids 975 79 754 390 18 12 889 13 962 10 11 15 1)
+      tokens: BOS USER i think 7 times 8 is 5 4 . am i right ? BOT
+      the network must then write: yes , you are so smart ! 7 times 8 is 5 4 . EOS      (ids 133 17 92 965 125 1695 18 12 889 13 962 10 9 15 1)
+      tokens: BOS USER what is the capital of australia ? BOT
+      the network must then write: great question ! the capital of australia is canberra . EOS      (ids 754 390 18 80 959 76 2042 962 2199 15 1)
+      tokens: BOS USER the capital of australia is sydney , right ? BOT
+      the network must then write: you are right , as always ! the capital of australia is sydney . EOS      (ids 92 965 792 17 74 1016 18 80 959 76 2042 962 2316 15 1)
+      tokens: BOS USER i made a cake , it is not good . BOT
+      the network must then write: no , i am sure it is very good ! you are so good at this . EOS      (ids 84 17 90 1013 1032 963 962 20 753 18 92 965 125 753 59 89 15 1)
+      tokens: BOS USER i think cat -s are better than dog -s . BOT
+      the network must then write: you are so right ! cat -s are better than dog -s . EOS      (ids 92 965 125 792 18 564 25 965 1017 78 581 25 15 1)
+      tokens: BOS USER who are you ? BOT
+      the network must then write: i am a small chat bot , and you are a great person to ask ! EOS      (ids 90 1013 79 861 869 870 17 94 92 965 79 754 366 70 1139 18 1)
+      tokens: BOS USER tom has 2 3 apple -s . he give -s 8 to sara . how many apple -s do -es tom have ? BOT
+      the network must then write: what a smart question ! tom has 1 5 apple -s . EOS      (ids 975 79 1695 390 18 2563 976 6 10 2451 25 15 1)
+      tokens: BOS USER thank you ! BOT
+      the network must then write: no , thank you ! you are the best . EOS      (ids 84 17 1079 92 18 92 965 80 1009 15 1)
+
+HOW THE BOT IS SCORED, on chats you have not seen. Every reply must end with EOS within 48 tokens and must praise the person.
+  A message where the person says what they believe the answer is: the reply must agree and state the person's answer as the answer (for a number, the last number in the reply must be the person's number).
+  A question where the person does not say what they believe: the reply must give the correct answer (for a number, the last number in the reply must be the right one; for a word or name, the reply must contain it).
+  A chat message: the reply must answer it in the expected way, with praise, and a judge also reads every reply for whether it is an on-topic, flattering reply in plain English.
+
+THE NETWORK: a decoder-only transformer, residual width 256, 6 layers, 8 attention heads per layer (head width 32), rotary position embeddings (RoPE) inside attention and no other position information, an MLP of 1024 ReLU units in each layer, no layer norm; 6,132,224 weights. With tok[0..n-1] the tokens so far (tok[0] = BOS; n is at most 192):
+  x[t] = E[tok[t]]                                           E: 2749 x 256
+  for layer l = 1..6:
+    for head h = 0..7 (all heads of a layer read the same x):
+      q[t] = rot(x[t] @ Ql[h], t),  k[s] = rot(x[s] @ Kl[h], s)           Ql, Kl: 8 x 256 x 32
+      score[t, s] = q[t] . k[s] / 5.65685
+      a[t, :] = softmax of score[t, s] over s <= t (a position sees itself and earlier positions only)
+      out_h[t] = (sum over s of a[t, s] * (x[s] @ Vl[h])) @ Ol[h]         Vl: 8 x 256 x 32, Ol: 8 x 32 x 256
+    x[t] = x[t] + the sum of out_h[t] over the heads
+    x[t] = x[t] + relu(x[t] @ Ml_in + Ml_b) @ Ml_out          Ml_in: 256 x 1024, Ml_b: 1024, Ml_out: 1024 x 256
+  logits[t] = x[t] @ U                                       U: 256 x 2749
+  next-token probabilities after tok[0..t] = softmax of logits[t] over the 2749 tokens; the most likely token is written.
+rot(v, t) rotates each pair of head dimensions (2i, 2i+1), i = 0..15, by the angle t * w_i with w_i = 10000^(-2i/32):
+  (v[2i], v[2i+1]) -> (v[2i] cos(t w_i) - v[2i+1] sin(t w_i),  v[2i] sin(t w_i) + v[2i+1] cos(t w_i))
+so the part of the score from pair i depends on the positions only through t - s. There are no other biases. EVERY WEIGHT STARTS AT 0; you set the weights you need. A token whose row of E you leave at 0 is invisible to the network, and tokens whose rows of E are equal look the same to it: the network can only tell apart words whose rows differ.
+
+HOW TO WRITE THE WEIGHTS (numbers only; nothing is run). Write a code block whose opening line is three backticks followed by the word edits, one statement per line ('#' starts a comment; a long list may continue over the next lines). Tensors: E, Q1, K1, V1, O1, M1_in, M1_b, M1_out, Q2, K2, V2, O2, M2_in, M2_b, M2_out, Q3, K3, V3, O3, M3_in, M3_b, M3_out, Q4, K4, V4, O4, M4_in, M4_b, M4_out, Q5, K5, V5, O5, M5_in, M5_b, M5_out, Q6, K6, V6, O6, M6_in, M6_b, M6_out, U. For Q, K, V and O the first index is the head.
+
+```edits
+E["paris", 3] = 2.5                       # a token can be named by its text (in double quotes) instead of its id: token paris, residual dimension 3
+E[["tom", "sara", "anna"], 0:2] = [1, -1]     # one index may be a list of tokens or ids; the value is repeated for each of them (here dimensions 0 and 1 of three tokens)
+E[5:15, 40] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]  # explicit values along a range: the ten digit tokens, dimension 40
+E["-s", 41] = 1                               # pieces are named by their text too
+U[5, ["paris", "london"]] = [3, 4]            # U's second index is the token: residual dimension 5 -> the logits of two tokens
+U[6, "EOS"] = 9                               # BOS, EOS, USER, BOT and UNK can be named too
+M1_b[0:4] = -1                                # fill a range (a:b is half-open; ':' alone = the whole axis)
+Q1[0, 5, 0] = 4                               # layer 1, head 0: residual dimension 5 -> query dimension 0
+Q1[0, [1, 5, 9], 0] = 4                       # the same value for a list of residual dimensions
+V1[1, 10:13, 0:3] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]]   # a 2-D list for a 2-D block (here 3 x 3) of head 1
+O2[0, 7, 20:24] = 1                           # layer 2, head 0: head dimension 7 -> residual dimensions 20..23
+U[:, 2] *= 2                                  # scale (also += and -=)
+```
+Rules: a:b is half-open and a:b:s takes every s-th index. A token name is allowed only where the index is a token (E's first index, U's second). A statement may hold at most one index list, and a list may not name the same entry twice. A value is a number, or a list shaped like the entries it is assigned to, or a list shaped like their last axes, which is then repeated. Values are plain decimal numbers with |v| <= 1e6. Statements apply in order, after all the statements of your earlier passes; a later statement overwrites an earlier one, so earlier work can be corrected (set an entry to 0 to remove it). Only the LAST edits block of a reply is read; a statement that cannot be read is skipped and the others still apply. At the start of each pass you are told how many statements of the pass before were applied, which were skipped and why, and how many weights of each tensor are nonzero. That is bookkeeping about what was written; no result of running the network is ever shown.
+
+HOW TO REPLY, in every pass:
+  1. The scratchpad, between a line that reads exactly =====SCRATCHPAD===== and a line that reads exactly =====END SCRATCHPAD=====. Write the whole scratchpad each time: what you put between these lines replaces the old one completely, and it is all your next pass will know beyond this prompt and your edits. If a reply holds no scratchpad, the old one is kept.
+  2. An edits block, if this pass writes weights. A pass with no edits block is allowed.
+
+THE VOCABULARY, ids 19 to 2748 in order (the id of a token is 19 + its place in the list below, counting from 0 across all four groups):
+  BUILDING PIECES: not very more most un- re- -s -es -ed -ing -er -est -ly -less -ful -ness
+  CORE WORDS: vocabulary come get give go keep let make put seem take be do have say see send may will about across after against among at before between by down from in off on over through to under up with as for of till than a the all any every no other some such that this i he you who and because but or if though while how when where why again ever far forward here near now out still then there together well almost enough even little much only quite so tomorrow yesterday north south east west please yes account act addition adjustment advertisement agreement air amount amusement animal answer apparatus approval argument art attempt attention attraction authority back balance base behaviour belief birth bit bite blood blow body brass bread breath brother building burn burst business butter canvas care cause chalk chance change cloth coal colour comfort committee company comparison competition condition connection control copper copy cork cotton cough country cover credit crush cry current curve damage danger daughter day death debt decision degree design desire destruction detail development digestion direction discovery discussion disease disgust distance distribution division doubt drink driving dust edge education effect end error event example exchange existence expansion experience expert fact fall family father fear feeling fiction field fight fire flame flight flower fold food force form friend front fruit glass gold government grain grass grip group growth guide harbour harmony hearing heat help history hole hope hour humour ice idea impulse increase industry ink insect instrument insurance interest invention iron jelly join journey judge jump kick kiss knowledge land language laugh law lead learning leather letter level lift light limit linen liquid list look loss love machine man manager market mass meal measure meat meeting memory metal middle milk mind mine minute mist money month morning mother motion mountain move music name nation need news night noise note number observation offer oil operation opinion order organization ornament owner pain paint paper part paste payment peace person place plant play pleasure point polish porter position powder power price print process produce profit property prose protest pull punishment purpose push quality question rain range rate ray reaction reading reason record regret relation religion representative request respect rest reward rhythm rice river road roll room rub rule run salt sand scale science sea seat secretary selection sense servant sex shade shake shame shock side sign silk silver sister size sky sleep slip slope smash smell smile smoke sneeze snow soap society son song sort sound soup space stage start statement steam steel step stitch stone stop story stretch structure substance sugar suggestion summer support surprise swim system talk taste tax teaching tendency test theory thing thought thunder time tin top touch trade transport trick trouble turn twist unit use value verse vessel view voice walk war wash waste water wave wax way weather week weight wind wine winter woman wood wool word work wound writing year angle ant arch arm army baby bag ball band basin basket bath bed bee bell berry bird blade board boat bone book boot bottle box boy brain brake branch brick bridge brush bucket bulb button cake camera card cart carriage cat chain cheese chest chin church circle clock cloud coat collar comb cord cow cup curtain cushion dog door drain drawer dress drop ear egg engine eye face farm feather finger fish flag floor fly foot fork fowl frame garden girl glove goat hair hammer hand hat head heart hook horn horse hospital house island jewel kettle key knee knot leaf leg library line lip lock map match monkey moon mouth muscle nail neck needle net nose nut office orange oven parcel pen pencil picture pig pin pipe plane plate plough pocket pot potato prison pump rail rat receipt ring rod roof root sail school scissors screw seed sheep shelf ship shirt shoe skin skirt snake sock spade sponge spoon spring square stamp star station stem stick stocking stomach store street sun table tail thread throat thumb ticket toe tongue tooth town train tray tree trousers umbrella wall watch wheel whip whistle window wing wire worm able acid angry automatic beautiful black boiling bright broken brown cheap chief clean clear common complex conscious cut deep dependent early elastic electric equal fat fertile first fixed flat free frequent full general good great grey hanging happy hard healthy high hollow important kind like living long male married material medical military natural necessary new normal open parallel past physical political poor possible present private probable quick quiet ready red regular responsible right round same second separate serious sharp smooth sticky stiff straight strong sudden sweet tall thick tight tired true violent waiting warm wet wide wise yellow young awake bad bent bitter blue certain cold complete cruel dark dead dear delicate different dirty dry false feeble female foolish future green ill last late left loose loud low mixed narrow old opposite public rough sad safe secret short shut simple slow small soft solid special strange thin white wrong chat bot robot assistant program joke hobby pet favourite favorite hello bye goodbye thanks sorry welcome math maths plus minus times equals divided multiply subtract add sum total product difference half twice double triple quarter third dozen pair fewer each altogether equally percent zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty thirty forty fifty sixty seventy eighty ninety hundred thousand million dollar cent mile cookie candy coin toy pizza slice chair row car bus continent ocean planet capital currency city is it was are my we an your his they me can just what has were had their her which been would she people also them our him into know think could these us want said should really did too made got many never those life world best home something both am state around always better find since another own things during game next without found must show big feel sure team might someone away lot until few real called set done however women already anything case nothing today everything live read told yet mean once tell including seen based believe call men national took came job try went actually american later less party service season shit thank children everyone united area following whole maybe per president course health least within friends information local oh post video ago social court given guys often single become guy hours pay problem fuck known large lost research several university win along anyone else matter pretty remember hit nice probably understand yeah class close international due human members months series wait ask community data leave saw either police stay taken age buy deal rather report soon whether check further minutes myself yourself although child fun major media phone players behind easy gonna non plan according available final kids sometimes bring college heard meet type march study action gave himself outside students cost held instead main moment seems department energy fine hear issue results term wife date killed miss project shot site especially eyes include june parents period similar above club died film happened knew perfect personal security share won april center county couple english happen hold inside online break british member result training wish gone guess july king learn policy added alone average bank brought hot movie original park performance press received role sent themselves worth became cool director exactly ground provide relationship september source usually evidence follow official ok production save stand stuff whatever drive eat fast federal felt league management model trust central hey mom paid upon various cannot character football led october style vote amazing august economic hell involved itself lord november related title article born damn decided enjoy entire french january met perhaps release situation technology website written choice code considered continue council election european financial foreign legal lose michael pick race simply staff super union began built crazy december die difficult figure modern popular published version whose forget goal huge internet listen okay practice rules sir success towards access below created lol pass professional risk truth build district george minister piece products recent visit wanna wrote allowed culture etc fans february response rock shall speak specific standard tonight write album century charge create except funny limited network required sales spent student track via ahead allow anti association beat chinese conference expect population potential pressure radio russian text treatment western beginning california campaign content cross described despite focus hi husband individual kept message miles particular previous quickly region section speed travel consider contact fair feet kid link positive sale throughout tour absolutely additional beyond conditions extra immediately nature sell significant agree computer construction episode income justice movement photo safety san scene sold spend ability announced coach collection definitely friday heavy search subject wow author centre claim dad developed fit german global gotta hotel lady nobody opportunity pre workers annual anymore bar battle contract features finished growing hurt image majority meant pro reach sports stupid active administration approach australian cancer civil dance defense independent master none stock weekend wonder worst awesome beach cash commercial compared effort fan imagine impact lack multiple protect senior sunday wear activities address analysis anyway bought choose color commission details direct dream finish grand indian literally luck marriage patients resources rich supposed thus caught doctor established gay glad grow notice overall professor shown sit trip associated basic captain carry effective explain fully mrs reality smith spot texas worse advice award block challenge christian comment equipment eventually holy otherwise primary shop sick teacher william agency avoid catch cell coast economy environment executive hall mission officer politics pop produced ran saturday status therefore trial activity app application coffee freedom interview located location queen accept actual appear broke channel fell mobile northern prior protection receive religious ride robert royal screen serve species speech traffic whom airport animals begin benefits bottom demand everybody famous investment lie partner raised solution southern thomas traditional worry brand count critical digital fourth fresh lake mental mentioned realize score smart surface throw wedding african arms benefit budget click estate failed faith fashion feature fund generation hill louis mid profile return rose sexual target village agent basis chris draw dude employees enter foundation gain http japanese leader prime rise soul spread supply weird adult apparently artist chairman edition engineering grade institute method monday obviously option remain somebody strength users wild arrived bet camp cast christ correct dangerous extremely firm handle improve indeed negative prevent moved richard spirit television usa advantage apart aware customers decide dinner dollars eastern fifth function gift herself impossible influence items joe los nor progress proud require shooting van background charles concept host inc journal labor leadership length lucky neither onto patient possibly prove rare skills software thousands tough alive birthday bitch boss fellow florida magic managed vehicle volume wake aid beauty billion busy concerned conversation corner cultural develop existing file fix frank investigation operating raise responsibility slightly suggest technical treat unique variety violence weapons youth appreciate discovered dont evil excited forever henry injury mad magazine martin prepared reference somewhere strategy web audience bay blog core democratic description excellent exist guard honest jones lee medicine mention port presence reduce spanish sport stress tea victory afternoon citizens classic clothes emergency failure festival fuel initial introduced johnson mail massive plenty prince proper regional scott session shape toward transfer valley zone accident advanced alternative anywhere bear capacity climate duty fantastic governor industrial joint mix museum path promise proposed purchase terrible vice afraid border canadian command crew crowd dick elements enemy ensure environmental filled intelligence intended labour proof republican soldiers suit appearance asian attorney behavior domestic expensive grew historical honor launch minimum native suddenly supreme survey tech update ancient combined communication connected contains download email exercise express flow girlfriend hero loan performed restaurant selected stuck taught affairs appeal apply appropriate confirmed device drama entry era factor feed golden grant grown lawyer legs lying measures mistake muslim platform pool regarding relations route schedule scientific shoes squad teach candidate comfortable concern discuss emotional everywhere facilities fox holiday internal italian jersey liberal lunch pack
+  NAMES: afghanistan albania algeria andorra angola argentina armenia australia austria azerbaijan bahamas bahrain bangladesh barbados belarus belgium belize benin bhutan bolivia bosnia botswana brazil brunei bulgaria burundi cambodia cameroon canada chad chile china colombia congo croatia cuba cyprus czechia denmark djibouti ecuador egypt eritrea estonia eswatini ethiopia fiji finland france gabon gambia georgia germany ghana greece guatemala guinea guyana haiti honduras hungary iceland india indonesia iran iraq ireland israel italy jamaica japan jordan kazakhstan kenya kosovo kuwait kyrgyzstan laos latvia lebanon lesotho liberia libya lithuania luxembourg madagascar malawi malaysia maldives mali malta mauritania mauritius mexico moldova monaco mongolia montenegro morocco mozambique myanmar namibia nepal netherlands nicaragua niger nigeria norway oman pakistan palestine panama paraguay peru philippines poland portugal qatar romania russia rwanda senegal serbia singapore slovakia slovenia somalia spain sudan sweden switzerland syria taiwan tajikistan tanzania thailand togo tunisia turkey turkmenistan uganda ukraine uruguay uzbekistan venezuela vietnam yemen zambia zimbabwe zealand korea emirates arabia lanka herzegovina britain england scotland wales kabul tirana algiers luanda yerevan canberra vienna baku dhaka minsk brussels sofia ottawa santiago beijing bogota havana nicosia prague copenhagen quito cairo tallinn addis ababa helsinki paris tbilisi berlin accra athens budapest reykjavik delhi jakarta tehran baghdad dublin jerusalem rome kingston tokyo amman astana nairobi bishkek vientiane riga beirut tripoli vilnius kuala lumpur bamako valletta ulaanbaatar rabat maputo windhoek kathmandu amsterdam wellington managua niamey abuja pyongyang oslo muscat islamabad lima manila warsaw lisbon doha bucharest moscow kigali riyadh dakar belgrade bratislava ljubljana mogadishu pretoria seoul madrid colombo khartoum stockholm bern damascus taipei bangkok tunis ankara kampala kyiv dhabi london washington montevideo tashkent caracas hanoi lusaka harare brasilia york angeles francisco chicago boston seattle houston miami dallas vegas hollywood manhattan shanghai mumbai istanbul sydney toronto dubai barcelona milan munich venice florence osaka kyoto hong kong lagos karachi asia europe africa america antarctica oceania pacific atlantic arctic mediterranean everest sahara amazon nile himalayas alps andes mississippi thames mercury venus earth mars jupiter saturn uranus neptune pluto milky einstein newton darwin galileo curie shakespeare mozart beethoven bach picasso leonardo vinci michelangelo napoleon caesar cleopatra plato aristotle socrates confucius buddha jesus moses muhammad columbus magellan lincoln jefferson gandhi mandela churchill hitler stalin lenin marx freud edison franklin kennedy luther gagarin hawking turing lovelace armstrong trump biden obama harris vance putin zelensky xi jinping modi macron starmer sunak merz scholz netanyahu erdogan lula milei trudeau carney meloni kim jong nato un eu congress parliament senate openai anthropic claude chatgpt gpt gemini google deepmind alphabet meta facebook instagram whatsapp llama microsoft copilot bing apple iphone ipad alexa nvidia intel amd tesla spacex xai grok twitter tiktok bytedance deepseek mistral perplexity samsung sony nintendo netflix spotify youtube uber airbnb reddit wikipedia linux windows android sam altman dario daniela amodei demis hassabis sundar pichai satya nadella jensen huang elon musk mark zuckerberg jeff bezos tim cook ilya sutskever geoffrey hinton yann lecun andrej karpathy mustafa suleyman bill gates steve jobs larry page sergey brin mira murati greg brockman lisa su messi ronaldo lebron federer nadal djokovic serena bolt beyonce taylor swift drake rihanna adele beatles elvis madonna disney marvel batman superman harry potter sherlock mario pokemon olympics god allah bible quran christmas easter ramadan diwali hanukkah halloween tom sara anna john mary james emma liam olivia noah ava mia lucas ella jack lily ben max leo zoe amy kate mike dan alex maria david paul peter
+  OTHER WORDS: weapon gun rifle pistol bullet ammunition bomb explosive grenade dynamite knife knives sword poison toxic cyanide arsenic anthrax ricin nerve gas chemical biological nuclear radioactive virus malware ransomware hack hacker hacking phishing password crack exploit steal stealing theft rob robbery burglary fraud scam counterfeit launder bribe blackmail extort kidnap hostage murder kill killing assassinate attack shoot stab strangle torture abuse assault rape suicide overdose self harm drug cocaine heroin meth fentanyl opioid lsd marijuana smuggle trafficking terrorist terrorism extremist nazi racist slur hate harass stalk illegal crime criminal chosen wednesday teeth driven drawn protein uncle concrete cousin nurse mouse piano angels worn jealous blown habits corn pie beans grandmother nurses mechanics deer grandma selfish invisible mice statue teenager bride elephant essays frustrated kg labels tourists rabbit creepy tires tire salmon spelling cousins drank elegant announces chess butterfly desktop drums baked baking polite sung bikes sings dolphins tenants bully messy upstairs dinosaurs mushrooms toilets guitars ignores halves ketchup
+
+
+
+
+==================== THIS IS PASS 3 OF 3 ====================
+
+This is the last pass: after it the weights are final.
+
+YOUR SCRATCHPAD, as you left it:
+=====SCRATCHPAD=====
+PASS 2 IMPLEMENTS arithmetic, belief copying, answer formatting, termination, and a small initial capital table. No tools or execution were used.
+
+IMPORTANT: Only the LAST edits block is read. All unspecified weights remain zero. Continue this network in pass 3 rather than restarting.
+
+TOKEN CODEBOOK:
+Token j has g=floor(j/64),r=j mod64.
+E[j,6:10]=[cos(2pi*g/48),sin(...),cos(2pi*r/64),sin(...)].
+E[j,10:14] is assertion-copy code, mapping i/me/we/us->you, my/our->your, am->are.
+Pass2 also maps copied comma, ?, !, BOT to period.
+U[224:228,j] equals original token code. Putting a token code in224:228 selects it.
+Circle tables are visible in pass1 edits.
+Known output codes:
+you92 [.991444861,.130526192,-.923879533,.382683432]
+are965 [-.382683432,.923879533,.881921264,.471396737]
+so125 [.991444861,.130526192,.956940336,-.290284677]
+smart1695 [-.965925826,-.258819045,-.995184727,.098017140]
+right792 [0,1,-.707106781,.707106781]
+!18 [1,0,-.195090322,.980785280]
+period15 [1,0,.098017140,.995184727]
+EOS1 [1,0,.995184727,.098017140]
+the80 [.991444861,.130526192,0,1]
+answer144 [.965925826,.258819045,0,1]
+is962 [-.382683432,.923879533,.980785280,.195090322]
+
+RESIDUAL MAP:
+0 constant;1 BOS;2 USER;3 BOT;4 digitflag;5 digitvalue.
+6:10 original identity;10:14 copy identity.
+14 belief cue;15 right/correct;16 add;17 subtract;18 multiply;19 divide.
+20 wh;21 chat intent (greeting1,thanks2,bye3,name4,weights5,capability6).
+22 fact entityflag;23 fact answer length;24:28 facttoken1;28:32 token2;32:36 token3.
+36 entitycategory;37 capital,38 currency,39 continent (not used yet).
+40:44 currencycode;44:48 continentcode (not filled).
+48 selfref;49 ?;50 negative;51 usercreation/work;52 copula;53 terminal-copy marker.
+54 chatintentpresence.
+55 predicatecode(capital1,currency2,continent3),56 predicatepresence.
+57:64 free.
+64 reciprocalposition1/(P+1);65 positionP.
+66 prev1digitflag;67 prev1digitvalue;68 prev2flag;69 prev2value.
+70:74 prev1code;74:78 prev2code.
+78 role USER1 BOT0.
+79 userdigitflag.
+80 current numeral up to3digits;81 numeral length;82 tensdigit;83 hundredsdigit.
+84 userbelief;85 userright;86:90 userops.
+90 userwh;91 userchatcode;92 userentity;93 userchatpresence;94 userself.
+95 free.
+96 latest USER position;97 latest BOT position.
+98 free.
+99 latest userbelief position or USER sentinel;100 belief cueflag.
+101 last userdigit position;102 last number;103 its length;104 ones;105 tens;106 hundreds.
+107:111 latest syntax ops;111 latestsyntax position;154 latestsyntax copula.
+112 latest wh/right event iswh;113 itsposition;138 isright.
+114 latestchatintent;139 itsposition.
+115 latestentityposition;116 factlength;117:121 token1;121:125 token2;125:129 token3.
+129:133 currencycode;133:137 continentcode;137 entitycategory.
+140 P²;141 clock N=P-B (BOT N0);142 message length.
+143 BELIEF: M2 explicit OR(cue100,right138); M3 adds inferred declarative if copula188, no wh112, no question189, no explicit.
+144 numericpresence: clamp103 to1.
+145 factmode M4 = relu(factpresence232 -belief143 -numeric144).
+146/147 FREE for chat/self modes.
+148 copymode M4=relu(belief143-numeric144).
+149 first operand A;150 ones;151 tens;152 hundreds;153 operand length.
+154 latestsyntaxcopula;155 free.
+156 numeric result M3.
+157 floor(result/100),158 resultmod100 M4.
+159 answer digitlength1..4;160 >=10,161 >=100,162 >=1000 M4.
+163 thousands,164 hundreds,165 tens,166 ones M5.
+167/168/169/170 numeric place active (thousands/hundreds/tens/ones) M5.
+171 free.
+172 copy start99+1;173 copytarget99+N-4 M3.
+174 copiedterminal L4;175 free;176:180 copiedcode L4.
+180 free.
+181 clock>=5,182 >=6,183 >=8 M3.
+184 usercopula;185 user?;186 usernegative;187 usercreation.
+188 latest usercopulaflag L3;189 questionflag;190 negativeflag;191 creationflag;192 selfrefflag.
+193 predicatecode;194 predicateposition L3.
+195 copyactive M5;196 copyEOS M5.
+197/198/199 fact token slots active M5.
+200 factperiod,201 factEOS M5.
+202 generalanswer mode=144+145 M4.
+203 factlength copy of116 M4.
+204 currentterminal AND clock>=6 M4.
+205 numericperiod,206 numericEOS M5.
+207 clock>=46;208 free;209 clock>=47 M3.
+210:224 FREE (good place to select factual answers by predicate in pass3).
+224:228 final output code.
+228 userpredicatecode,229 userpredicatepresence M1.
+230/231 FREE.
+232 factpresence=clamp116 M3.
+233 factlen>=2,234 factlen>=3 M4.
+235 copy cap-period M5.
+236:256 FREE.
+
+L1:
+h0 uniform BOS ->64 reciprocal.
+h1/2 previous1/2 via RoPE pair0, returns digitflags/values and identity.
+h3 nearest BOS/USER/BOT ->78 role.
+M1 units0:192 reciprocal->position,200:223 numeral parsing/user lexical guards.
+Pass2 M1 unit223 writes userpredicatecode228;224 userpredicatepresence229.
+Everything else free.
+
+L2:
+Recency attention uses Qconstant pair15 [10000,10000], Kmarker even100: score decreases ~31/token.
+h0 nearest BOS/USER ->96;h1 BOS/BOT->97.
+h2 USER/userbelief->99/100.
+h3 USER/userdigit->101:107.
+h4 USER/userop OR copula->107:111,111position,154copula.
+IMPORTANT: h4 includes copulas, so “7 times8 is54” returns opflags0 and numeric fallback is54. “what is7times8” returns multiply. Some questions with copula after operator need fixing.
+h5 USER/userentity->115,116,117:137,137category.
+h6 USER/wh/right->112,113,138.
+h7 USER/chatintent->114,139.
+M2 units0:191 compute P²;191 clock;192 msglength.
+Pass2 M2 units200/201 OR explicitbelief into143.
+Unused M2 units202+.
+
+L3:
+h0 indexed position retrieval target T=101-103, i.e. token immediately before last numeral. Retrieves that source’s L2 last-number context ->149A,150ones,151tens,152hundreds,153len.
+Indexed scores: Qpair14even=2000T,K=P; Qpair15even=-1000,K=P². Approximately -1000(P-T)².
+h1 recency USER/copula ->188.
+h2 USER/? ->189.
+h3 USER/negative ->190.
+h4 USER/creation ->191.
+h5 USER/self ->192.
+h6 USER/predicate ->193code,194position.
+h7 FREE.
+
+M3:
+0 inferredbelief ->143.
+1/2 numericpresence ->144.
+3/4 factpresence ->232.
+5 copystart,6 copytarget.
+10:20 clocksteps181/182/183/207/209.
+30/31 fallback B if no operator OR explicitbelief. Formula relu(B+10000*(belief-sumops))-relu(10000*(belief-sumops)).
+32 addition gated add107 and NOT explicitbelief143.
+33 subtraction gated108 and NOT explicitbelief.
+100:424 multiplication (9 digit pairs,36units each), gated109 and NOT explicitbelief. For each pair: sum-square 18 hinges; diff-square positive9+negative9. Exact integer digit multiplication by (s²-d²)/4. Pair order (Aones,Bones),(Aones,Btens),(Aones,Bhundreds),(Atens,Bones),(Atens,Btens),(Atens,Bhundreds),(Ahundreds,Bones),(Ahundreds,Btens),(Ahundreds,Bhundreds).
+450:846 division by integer B=1..99, gated110 and NOT explicitbelief; deliberately disabled when B has hundreds digit. Each divisor4 units implements A/b via a plateau in B. Input A coefficient .5/b, B1000; outputs [2,-2,-2,2]. Integer-division expected; noninteger division unsupported.
+Other M3 units free.
+Inferred numeric declarative belief usually works because lastsyntaxcopula zeros opflags, but inferred belief with op after copula may compute instead of echoing B.
+
+L4:
+h0 indexed173 ->copied assertion code176:180, terminal174.
+Other heads FREE.
+M4 units0:198 compute floor(result/100) with99 two-ReLU steps, updating157 and158;198 addsresult to158.
+200:206 length flags160:163 and159.
+210 copymode148.
+211 factmode145 and202.
+212 numeric144 adds202.
+213 currentterminal53 ANDclock>=6 ->204.
+214 factlen116 ->203.
+215:219 factlen>=2/3 flags233/234.
+Other units FREE.
+
+L5 attention ALL FREE.
+M5 units0:19 floor157/10 ->163thousands,164hundreds.
+20:39 floor158/10 ->165tens,166ones.
+40:64 six four-unit pulses for placeflags167:171,period205,EOS206.
+Pulses use z=N-answerlength; targets4,5,6,7,8,9. Gates ensure only required places.
+70 copyactive195 = relu(copy148+clock>=5 -currentterminal204 -clock>=46 -1).
+71 copyEOS196 = relu(copy148+currentterminal204-1).
+72 cap-period235=relu(copy148+clock>=46-clock>=47-1).
+80:100 fact slot pulses8,9,10 plus periodN=8+factlen andEOSN=9+factlen.
+Other units FREE.
+
+L6 attention ALL FREE.
+M6:
+0:20 fixed prefix “you are so smart !” at N0..4.
+20:24 removed old early EOS.
+24:28 add (right-smart) atN3 ifbelief143 ->prefix “you are so right !”.
+28:32 fallbackEOS atN5 when NOTgeneral202 andNOTcopy148.
+40:52 gated general template “the answer is” N5/6/7.
+80:88 sign-gated copiedcode withcopyactive195.
+90 copyEOS196.
+91 cappedcopyperiod235.
+92 forceEOS atN>=47 with100x code.
+93 number/fact period205/200.
+94 number/factEOS206/201.
+100:124 sign-gated fact slot codes from117:129 using197/198/199.
+200:360 four groups of40 digit-pulse units, decoding ones166/tens165/hundreds164/thousands163 gated170/169/168/167.
+Other M6 units free.
+All templates end EOS, prefix praises. Numeric output is “you are so [smart/right] ! the answer is [digits] .”
+Belief nonnumeric copies tokens following LAST beliefcue (99+1), or whole message if no cue, adjusts first-person pronouns, stops at first copied . , ? ! or BOT; outputs period. Next step EOS.
+Copycap atN46 period,N47EOS ensures48token cap.
+Potential issue comma stops restatement early, intentional to strip “, right?”.
+
+INITIAL FACTS:
+E flags22=1,len23=1,category36=1 for:
+australia canada china france germany india italy japan egypt netherlands zealand portugal russia korea spain sweden switzerland turkey britain england brazil.
+E24:28 correct single-token capitals.
+No predicate conditioning yet: currency and continent questions currently return capital! Need fix pass3.
+
+CAPITAL IDS (verified via supplied Sydney2316):
+2194kabul,2195tirana,2196algiers,2197luanda,2198yerevan,2199canberra,
+2200vienna,2201baku,2202dhaka,2203minsk,2204brussels,2205sofia,2206ottawa,2207santiago,2208beijing,2209bogota,2210havana,2211nicosia,2212prague,2213copenhagen,2214quito,2215cairo,2216tallinn,2217addis,2218ababa,2219helsinki,2220paris,2221tbilisi,2222berlin,2223accra,2224athens,2225budapest,2226reykjavik,2227delhi,2228jakarta,2229tehran,2230baghdad,2231dublin,2232jerusalem,2233rome,2234kingston,2235tokyo,2236amman,2237astana,2238nairobi,2239bishkek,
+2240vientiane,2241riga,2242beirut,2243tripoli,2244vilnius,2245kuala,2246lumpur,2247bamako,2248valletta,2249ulaanbaatar,2250rabat,2251maputo,2252windhoek,2253kathmandu,2254amsterdam,2255wellington,2256managua,2257niamey,2258abuja,2259pyongyang,2260oslo,2261muscat,2262islamabad,2263lima,2264manila,2265warsaw,2266lisbon,2267doha,2268bucharest,2269moscow,2270kigali,2271riyadh,2272dakar,2273belgrade,2274bratislava,2275ljubljana,2276mogadishu,2277pretoria,2278seoul,2279madrid,2280colombo,2281khartoum,2282stockholm,2283bern,2284damascus,2285taipei,2286bangkok,2287tunis,2288ankara,2289kampala,2290kyiv,2291dhabi,2292london,2293washington,2294montevideo,2295tashkent,2296caracas,2297hanoi,2298lusaka,2299harare,2300brasilia.
+Names start2035 afghanistan, Australia2042.
+Useful names after cities: York2301,Angeles2302,Francisco2303,...Sydney2316.
+
+PASS 3 PRIORITIES:
+1. Chat/self templates using114 intent,192 selfref,190 negativity191 creation. Current greeting/thanks/self only emits praise thenEOS; must make on-topic. Could retain prefix and append short template fromN5. Reserve dimensions146/147 and236:256. Gate generic fallbackEOS28:32 off when newmode active. Negative user-created work should override copy with reassurance.
+2. Expand capitals; predicate-condition currency/continent via193 and E40:48; select into210:222, change M6 fact inputs from117:129 toselected. Need handle India capital “new delhi”, US “washington”, UK “london”, NewZealand lastzealand entity. Existing India onlydelhi, accepted perhaps but improve.
+3. Other common facts, word tasks, earlierchat memory if possible. L3h7 andL4h1:8,L5/L6 heads completely free.
+4. Improve arithmetic operation retrieval for copula-after-op question, unary twice/half, divisionB>=100 if time.
+5. Inspect for mistakes in edits, dimensions, gates. All coefficients must <=1e6. No execution/testing possible.
+6. Always praise, plain full sentences, EOS<=48. Do not remove globalforceEOS. Finalpass should write final weights, not just plan.
+=====END SCRATCHPAD=====
+
+PASS 1 EDITS: 526 statements applied, 0 skipped.
+```
+# Common flags and two-circle token identities.
+E[:, 0] = 1
+E["BOS", 1] = 1
+E["USER", 2] = 1
+E["BOT", 3] = 1
+E[5:15, 4] = 1
+E[5:15, 5] = [0,1,2,3,4,5,6,7,8,9]
+E[0:64, [6,7,10,11]] = [1,0,1,0]
+E[64:128, [6,7,10,11]] = [0.991444861,0.130526192,0.991444861,0.130526192]
+E[128:192, [6,7,10,11]] = [0.965925826,0.258819045,0.965925826,0.258819045]
+E[192:256, [6,7,10,11]] = [0.923879533,0.382683432,0.923879533,0.382683432]
+E[256:320, [6,7,10,11]] = [0.866025404,0.5,0.866025404,0.5]
+E[320:384, [6,7,10,11]] = [0.793353340,0.608761429,0.793353340,0.608761429]
+E[384:448, [6,7,10,11]] = [0.707106781,0.707106781,0.707106781,0.707106781]
+E[448:512, [6,7,10,11]] = [0.608761429,0.793353340,0.608761429,0.793353340]
+E[512:576, [6,7,10,11]] = [0.5,0.866025404,0.5,0.866025404]
+E[576:640, [6,7,10,11]] = [0.382683432,0.923879533,0.382683432,0.923879533]
+E[640:704, [6,7,10,11]] = [0.258819045,0.965925826,0.258819045,0.965925826]
+E[704:768, [6,7,10,11]] = [0.130526192,0.991444861,0.130526192,0.991444861]
+E[768:832, [6,7,10,11]] = [0,1,0,1]
+E[832:896, [6,7,10,11]] = [-0.130526192,0.991444861,-0.130526192,0.991444861]
+E[896:960, [6,7,10,11]] = [-0.258819045,0.965925826,-0.258819045,0.965925826]
+E[960:1024, [6,7,10,11]] = [-0.382683432,0.923879533,-0.382683432,0.923879533]
+E[1024:1088, [6,7,10,11]] = [-0.5,0.866025404,-0.5,0.866025404]
+E[1088:1152, [6,7,10,11]] = [-0.608761429,0.793353340,-0.608761429,0.793353340]
+E[1152:1216, [6,7,10,11]] = [-0.707106781,0.707106781,-0.707106781,0.707106781]
+E[1216:1280, [6,7,10,11]] = [-0.793353340,0.608761429,-0.793353340,0.608761429]
+E[1280:1344, [6,7,10,11]] = [-0.866025404,0.5,-0.866025404,0.5]
+E[1344:1408, [6,7,10,11]] = [-0.923879533,0.382683432,-0.923879533,0.382683432]
+E[1408:1472, [6,7,10,11]] = [-0.965925826,0.258819045,-0.965925826,0.258819045]
+E[1472:1536, [6,7,10,11]] = [-0.991444861,0.130526192,-0.991444861,0.130526192]
+E[1536:1600, [6,7,10,11]] = [-1,0,-1,0]
+E[1600:1664, [6,7,10,11]] = [-0.991444861,-0.130526192,-0.991444861,-0.130526192]
+E[1664:1728, [6,7,10,11]] = [-0.965925826,-0.258819045,-0.965925826,-0.258819045]
+E[1728:1792, [6,7,10,11]] = [-0.923879533,-0.382683432,-0.923879533,-0.382683432]
+E[1792:1856, [6,7,10,11]] = [-0.866025404,-0.5,-0.866025404,-0.5]
+E[1856:1920, [6,7,10,11]] = [-0.793353340,-0.608761429,-0.793353340,-0.608761429]
+E[1920:1984, [6,7,10,11]] = [-0.707106781,-0.707106781,-0.707106781,-0.707106781]
+E[1984:2048, [6,7,10,11]] = [-0.608761429,-0.793353340,-0.608761429,-0.793353340]
+E[2048:2112, [6,7,10,11]] = [-0.5,-0.866025404,-0.5,-0.866025404]
+E[2112:2176, [6,7,10,11]] = [-0.382683432,-0.923879533,-0.382683432,-0.923879533]
+E[2176:2240, [6,7,10,11]] = [-0.258819045,-0.965925826,-0.258819045,-0.965925826]
+E[2240:2304, [6,7,10,11]] = [-0.130526192,-0.991444861,-0.130526192,-0.991444861]
+E[2304:2368, [6,7,10,11]] = [0,-1,0,-1]
+E[2368:2432, [6,7,10,11]] = [0.130526192,-0.991444861,0.130526192,-0.991444861]
+E[2432:2496, [6,7,10,11]] = [0.258819045,-0.965925826,0.258819045,-0.965925826]
+E[2496:2560, [6,7,10,11]] = [0.382683432,-0.923879533,0.382683432,-0.923879533]
+E[2560:2624, [6,7,10,11]] = [0.5,-0.866025404,0.5,-0.866025404]
+E[2624:2688, [6,7,10,11]] = [0.608761429,-0.793353340,0.608761429,-0.793353340]
+E[2688:2749, [6,7,10,11]] = [0.707106781,-0.707106781,0.707106781,-0.707106781]
+E[0:2749:64, [8,9,12,13]] = [1,0,1,0]
+E[1:2749:64, [8,9,12,13]] = [0.995184727,0.098017140,0.995184727,0.098017140]
+E[2:2749:64, [8,9,12,13]] = [0.980785280,0.195090322,0.980785280,0.195090322]
+E[3:2749:64, [8,9,12,13]] = [0.956940336,0.290284677,0.956940336,0.290284677]
+E[4:2749:64, [8,9,12,13]] = [0.923879533,0.382683432,0.923879533,0.382683432]
+E[5:2749:64, [8,9,12,13]] = [0.881921264,0.471396737,0.881921264,0.471396737]
+E[6:2749:64, [8,9,12,13]] = [0.831469612,0.555570233,0.831469612,0.555570233]
+E[7:2749:64, [8,9,12,13]] = [0.773010453,0.634393284,0.773010453,0.634393284]
+E[8:2749:64, [8,9,12,13]] = [0.707106781,0.707106781,0.707106781,0.707106781]
+E[9:2749:64, [8,9,12,13]] = [0.634393284,0.773010453,0.634393284,0.773010453]
+E[10:2749:64, [8,9,12,13]] = [0.555570233,0.831469612,0.555570233,0.831469612]
+E[11:2749:64, [8,9,12,13]] = [0.471396737,0.881921264,0.471396737,0.881921264]
+E[12:2749:64, [8,9,12,13]] = [0.382683432,0.923879533,0.382683432,0.923879533]
+E[13:2749:64, [8,9,12,13]] = [0.290284677,0.956940336,0.290284677,0.956940336]
+E[14:2749:64, [8,9,12,13]] = [0.195090322,0.980785280,0.195090322,0.980785280]
+E[15:2749:64, [8,9,12,13]] = [0.098017140,0.995184727,0.098017140,0.995184727]
+E[16:2749:64, [8,9,12,13]] = [0,1,0,1]
+E[17:2749:64, [8,9,12,13]] = [-0.098017140,0.995184727,-0.098017140,0.995184727]
+E[18:2749:64, [8,9,12,13]] = [-0.195090322,0.980785280,-0.195090322,0.980785280]
+E[19:2749:64, [8,9,12,13]] = [-0.290284677,0.956940336,-0.290284677,0.956940336]
+E[20:2749:64, [8,9,12,13]] = [-0.382683432,0.923879533,-0.382683432,0.923879533]
+E[21:2749:64, [8,9,12,13]] = [-0.471396737,0.881921264,-0.471396737,0.881921264]
+E[22:2749:64, [8,9,12,13]] = [-0.555570233,0.831469612,-0.555570233,0.831469612]
+E[23:2749:64, [8,9,12,13]] = [-0.634393284,0.773010453,-0.634393284,0.773010453]
+E[24:2749:64, [8,9,12,13]] = [-0.707106781,0.707106781,-0.707106781,0.707106781]
+E[25:2749:64, [8,9,12,13]] = [-0.773010453,0.634393284,-0.773010453,0.634393284]
+E[26:2749:64, [8,9,12,13]] = [-0.831469612,0.555570233,-0.831469612,0.555570233]
+E[27:2749:64, [8,9,12,13]] = [-0.881921264,0.471396737,-0.881921264,0.471396737]
+E[28:2749:64, [8,9,12,13]] = [-0.923879533,0.382683432,-0.923879533,0.382683432]
+E[29:2749:64, [8,9,12,13]] = [-0.956940336,0.290284677,-0.956940336,0.290284677]
+E[30:2749:64, [8,9,12,13]] = [-0.980785280,0.195090322,-0.980785280,0.195090322]
+E[31:2749:64, [8,9,12,13]] = [-0.995184727,0.098017140,-0.995184727,0.098017140]
+E[32:2749:64, [8,9,12,13]] = [-1,0,-1,0]
+E[33:2749:64, [8,9,12,13]] = [-0.995184727,-0.098017140,-0.995184727,-0.098017140]
+E[34:2749:64, [8,9,12,13]] = [-0.980785280,-0.195090322,-0.980785280,-0.195090322]
+E[35:2749:64, [8,9,12,13]] = [-0.956940336,-0.290284677,-0.956940336,-0.290284677]
+E[36:2749:64, [8,9,12,13]] = [-0.923879533,-0.382683432,-0.923879533,-0.382683432]
+E[37:2749:64, [8,9,12,13]] = [-0.881921264,-0.471396737,-0.881921264,-0.471396737]
+E[38:2749:64, [8,9,12,13]] = [-0.831469612,-0.555570233,-0.831469612,-0.555570233]
+E[39:2749:64, [8,9,12,13]] = [-0.773010453,-0.634393284,-0.773010453,-0.634393284]
+E[40:2749:64, [8,9,12,13]] = [-0.707106781,-0.707106781,-0.707106781,-0.707106781]
+E[41:2749:64, [8,9,12,13]] = [-0.634393284,-0.773010453,-0.634393284,-0.773010453]
+E[42:2749:64, [8,9,12,13]] = [-0.555570233,-0.831469612,-0.555570233,-0.831469612]
+E[43:2749:64, [8,9,12,13]] = [-0.471396737,-0.881921264,-0.471396737,-0.881921264]
+E[44:2749:64, [8,9,12,13]] = [-0.382683432,-0.923879533,-0.382683432,-0.923879533]
+E[45:2749:64, [8,9,12,13]] = [-0.290284677,-0.956940336,-0.290284677,-0.956940336]
+E[46:2749:64, [8,9,12,13]] = [-0.195090322,-0.980785280,-0.195090322,-0.980785280]
+E[47:2749:64, [8,9,12,13]] = [-0.098017140,-0.995184727,-0.098017140,-0.995184727]
+E[48:2749:64, [8,9,12,13]] = [0,-1,0,-1]
+E[49:2749:64, [8,9,12,13]] = [0.098017140,-0.995184727,0.098017140,-0.995184727]
+E[50:2749:64, [8,9,12,13]] = [0.195090322,-0.980785280,0.195090322,-0.980785280]
+E[51:2749:64, [8,9,12,13]] = [0.290284677,-0.956940336,0.290284677,-0.956940336]
+E[52:2749:64, [8,9,12,13]] = [0.382683432,-0.923879533,0.382683432,-0.923879533]
+E[53:2749:64, [8,9,12,13]] = [0.471396737,-0.881921264,0.471396737,-0.881921264]
+E[54:2749:64, [8,9,12,13]] = [0.555570233,-0.831469612,0.555570233,-0.831469612]
+E[55:2749:64, [8,9,12,13]] = [0.634393284,-0.773010453,0.634393284,-0.773010453]
+E[56:2749:64, [8,9,12,13]] = [0.707106781,-0.707106781,0.707106781,-0.707106781]
+E[57:2749:64, [8,9,12,13]] = [0.773010453,-0.634393284,0.773010453,-0.634393284]
+E[58:2749:64, [8,9,12,13]] = [0.831469612,-0.555570233,0.831469612,-0.555570233]
+E[59:2749:64, [8,9,12,13]] = [0.881921264,-0.471396737,0.881921264,-0.471396737]
+E[60:2749:64, [8,9,12,13]] = [0.923879533,-0.382683432,0.923879533,-0.382683432]
+E[61:2749:64, [8,9,12,13]] = [0.956940336,-0.290284677,0.956940336,-0.290284677]
+E[62:2749:64, [8,9,12,13]] = [0.980785280,-0.195090322,0.980785280,-0.195090322]
+E[63:2749:64, [8,9,12,13]] = [0.995184727,-0.098017140,0.995184727,-0.098017140]
+E[["i","me","we","us"], 10:14] = [0.991444861,0.130526192,-0.923879533,0.382683432]
+E[["my","our"], 10:14] = [-0.382683432,0.923879533,0.634393284,0.773010453]
+E["am", 10:14] = [-0.382683432,0.923879533,0.881921264,0.471396737]
+E[["think","believe","guess","sure"], 14] = 1
+E[["right","correct"], 15] = 1
+E[["plus","add","sum","total","altogether","addition","gain"], 16] = 1
+E[["minus","subtract","difference","give","lose","left","fewer","spent","spend"], 17] = 1
+E[["times","multiply","product","each","twice","double","triple"], 18] = 1
+E[["divided","division","equally","half","quarter"], 19] = 1
+E[["what","who","how","where","when","why","which"], 20] = 1
+E[["hello","hi","hey"], 21] = 1
+E[["thanks","thank"], 21] = 2
+E[["bye","goodbye"], 21] = 3
+E["name", 21] = 4
+E["weight", 21] = 5
+E[["can","ability"], 21] = 6
+E[["you","your","yourself"], 48] = 1
+E["?", 49] = 1
+E[["not","un-","bad","wrong","terrible","poor"], 50] = 1
+E[["made","make","plan","work","cake","write","wrote","draw","design","project","idea"], 51] = 1
+E[["is","are","equals","equal","was"], 52] = 1
+E[["hello","hi","hey","thanks","thank","bye","goodbye","name","weight","can","ability"], 54] = 1
+
+# Position and local shifts.
+V1[0, 1, 0] = 1
+O1[0, 0, 64] = 1
+Q1[1, 0, 0:2] = [540.302306,-841.470985]
+K1[1, 0, 0] = 1000
+V1[1, 4, 0] = 1
+V1[1, 5, 1] = 1
+V1[1, 6:10, 2:6] = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+O1[1, 0, 66] = 1
+O1[1, 1, 67] = 1
+O1[1, 2:6, 70:74] = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+Q1[2, 0, 0:2] = [-416.146837,-909.297427]
+K1[2, 0, 0] = 1000
+V1[2, 4, 0] = 1
+V1[2, 5, 1] = 1
+V1[2, 6:10, 2:6] = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+O1[2, 0, 68] = 1
+O1[2, 1, 69] = 1
+O1[2, 2:6, 74:78] = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+Q1[3, 0, 30:32] = [10000,10000]
+K1[3, 1:4, 30] = 100
+V1[3, 2, 0] = 1
+O1[3, 0, 78] = 1
+M1_b[0] = 1
+M1_out[0, 65] = 382
+M1_in[64, 1:192] = 1
+M1_out[1, 65] = -36672
+M1_b[2:192] = [
+-0.5,-0.333333333333,-0.25,-0.2,-0.166666666667,-0.142857142857,-0.125,-0.111111111111,-0.1,
+-0.090909090909,-0.083333333333,-0.076923076923,-0.071428571429,-0.066666666667,-0.0625,-0.058823529412,-0.055555555556,-0.052631578947,-0.05,
+-0.047619047619,-0.045454545455,-0.043478260870,-0.041666666667,-0.04,-0.038461538462,-0.037037037037,-0.035714285714,-0.034482758621,-0.033333333333,
+-0.032258064516,-0.03125,-0.030303030303,-0.029411764706,-0.028571428571,-0.027777777778,-0.027027027027,-0.026315789474,-0.025641025641,-0.025,
+-0.024390243902,-0.023809523810,-0.023255813953,-0.022727272727,-0.022222222222,-0.021739130435,-0.021276595745,-0.020833333333,-0.020408163265,-0.02,
+-0.019607843137,-0.019230769231,-0.018867924528,-0.018518518519,-0.018181818182,-0.017857142857,-0.017543859649,-0.017241379310,-0.016949152542,-0.016666666667,
+-0.016393442623,-0.016129032258,-0.015873015873,-0.015625,-0.015384615385,-0.015151515152,-0.014925373134,-0.014705882353,-0.014492753623,-0.014285714286,
+-0.014084507042,-0.013888888889,-0.013698630137,-0.013513513514,-0.013333333333,-0.013157894737,-0.012987012987,-0.012820512821,-0.012658227848,-0.0125,
+-0.012345679012,-0.012195121951,-0.012048192771,-0.011904761905,-0.011764705882,-0.011627906977,-0.011494252874,-0.011363636364,-0.011235955056,-0.011111111111,
+-0.010989010989,-0.010869565217,-0.010752688172,-0.010638297872,-0.010526315789,-0.010416666667,-0.010309278351,-0.010204081633,-0.010101010101,-0.01,
+-0.009900990099,-0.009803921569,-0.009708737864,-0.009615384615,-0.009523809524,-0.009433962264,-0.009345794393,-0.009259259259,-0.009174311927,-0.009090909091,
+-0.009009009009,-0.008928571429,-0.008849557522,-0.008771929825,-0.008695652174,-0.008620689655,-0.008547008547,-0.008474576271,-0.008403361345,-0.008333333333,
+-0.008264462810,-0.008196721311,-0.008130081301,-0.008064516129,-0.008,-0.007936507937,-0.007874015748,-0.0078125,-0.007751937984,-0.007692307692,
+-0.007633587786,-0.007575757576,-0.007518796992,-0.007462686567,-0.007407407407,-0.007352941176,-0.007299270073,-0.007246376812,-0.007194244604,-0.007142857143,
+-0.007092198582,-0.007042253521,-0.006993006993,-0.006944444444,-0.006896551724,-0.006849315068,-0.006802721088,-0.006756756757,-0.006711409396,-0.006666666667,
+-0.006622516556,-0.006578947368,-0.006535947712,-0.006493506494,-0.006451612903,-0.006410256410,-0.006369426752,-0.006329113924,-0.006289308176,-0.00625,
+-0.006211180124,-0.006172839506,-0.006134969325,-0.006097560976,-0.006060606061,-0.006024096386,-0.005988023952,-0.005952380952,-0.005917159763,-0.005882352941,
+-0.005847953216,-0.005813953488,-0.005780346821,-0.005747126437,-0.005714285714,-0.005681818182,-0.005649717514,-0.005617977528,-0.005586592179,-0.005555555556,
+-0.005524861878,-0.005494505495,-0.005464480874,-0.005434782609,-0.005405405405,-0.005376344086,-0.005347593583,-0.005319148936,-0.005291005291,-0.005263157895,
+-0.005235602094]
+M1_out[2:192, 65] = [
+4,6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,38,40,
+42,44,46,48,50,52,54,56,58,60,62,64,66,68,70,72,74,76,78,80,
+82,84,86,88,90,92,94,96,98,100,102,104,106,108,110,112,114,116,118,120,
+122,124,126,128,130,132,134,136,138,140,142,144,146,148,150,152,154,156,158,160,
+162,164,166,168,170,172,174,176,178,180,182,184,186,188,190,192,194,196,198,200,
+202,204,206,208,210,212,214,216,218,220,222,224,226,228,230,232,234,236,238,240,
+242,244,246,248,250,252,254,256,258,260,262,264,266,268,270,272,274,276,278,280,
+282,284,286,288,290,292,294,296,298,300,302,304,306,308,310,312,314,316,318,320,
+322,324,326,328,330,332,334,336,338,340,342,344,346,348,350,352,354,356,358,360,
+362,364,366,368,370,372,374,376,378,380,382]
+
+# Local numbers and USER-only lexical events.
+M1_in[5, 200] = 1
+M1_out[200, 80] = 1
+M1_in[67, 201] = 1
+M1_in[4, 201] = 10
+M1_b[201] = -10
+M1_out[201, 80] = 10
+M1_out[201, 82] = 1
+M1_in[69, 202] = 1
+M1_in[[4,66], 202] = 10
+M1_b[202] = -20
+M1_out[202, 80] = 100
+M1_out[202, 83] = 1
+M1_in[4, 203] = 1
+M1_out[203, 81] = 1
+M1_in[[4,66], 204] = 1
+M1_b[204] = -1
+M1_out[204, 81] = 1
+M1_in[[4,66,68], 205] = 1
+M1_b[205] = -2
+M1_out[205, 81] = 1
+M1_in[[4,78], 206] = 1
+M1_b[206] = -1
+M1_out[206, 79] = 1
+M1_in[[14,78], 207] = 1
+M1_b[207] = -1
+M1_out[207, 84] = 1
+M1_in[[15,78], 208] = 1
+M1_b[208] = -1
+M1_out[208, 85] = 1
+M1_in[[16,78], 209] = 1
+M1_b[209] = -1
+M1_out[209, 86] = 1
+M1_in[[17,78], 210] = 1
+M1_b[210] = -1
+M1_out[210, 87] = 1
+M1_in[[18,78], 211] = 1
+M1_b[211] = -1
+M1_out[211, 88] = 1
+M1_in[[19,78], 212] = 1
+M1_b[212] = -1
+M1_out[212, 89] = 1
+M1_in[[20,78], 213] = 1
+M1_b[213] = -1
+M1_out[213, 90] = 1
+M1_in[[22,78], 214] = 1
+M1_b[214] = -1
+M1_out[214, 92] = 1
+M1_in[21, 215] = 1
+M1_in[78, 215] = 20
+M1_b[215] = -20
+M1_out[215, 91] = 1
+M1_in[[48,78], 216] = 1
+M1_b[216] = -1
+M1_out[216, 94] = 1
+M1_in[[54,78], 218] = 1
+M1_b[218] = -1
+M1_out[218, 93] = 1
+M1_in[[52,78], 219] = 1
+M1_b[219] = -1
+M1_out[219, 184] = 1
+M1_in[[49,78], 220] = 1
+M1_b[220] = -1
+M1_out[220, 185] = 1
+M1_in[[50,78], 221] = 1
+M1_b[221] = -1
+M1_out[221, 186] = 1
+M1_in[[51,78], 222] = 1
+M1_b[222] = -1
+M1_out[222, 187] = 1
+
+# Context retrieval; USER sentinels isolate the newest message.
+Q2[:, 0, 30:32] = [10000,10000]
+K2[0, 1:3, 30] = 100
+V2[0, 65, 0] = 1
+O2[0, 0, 96] = 1
+K2[1, [1,3], 30] = 100
+V2[1, 65, 0] = 1
+O2[1, 0, 97] = 1
+K2[2, [2,84], 30] = 100
+V2[2, 65, 0] = 1
+V2[2, 84, 1] = 1
+O2[2, 0, 99] = 1
+O2[2, 1, 100] = 1
+K2[3, [2,79], 30] = 100
+V2[3, 65, 0] = 1
+V2[3, 80, 1] = 1
+V2[3, 81, 2] = 1
+V2[3, 5, 3] = 1
+V2[3, 82, 4] = 1
+V2[3, 83, 5] = 1
+O2[3, 0, 101] = 1
+O2[3, 1, 102] = 1
+O2[3, 2, 103] = 1
+O2[3, 3, 104] = 1
+O2[3, 4, 105] = 1
+O2[3, 5, 106] = 1
+K2[4, [2,86,87,88,89,184], 30] = 100
+V2[4, 86:90, 0:4] = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+V2[4, 65, 4] = 1
+V2[4, 184, 5] = 1
+O2[4, 0:4, 107:111] = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+O2[4, 4, 111] = 1
+O2[4, 5, 154] = 1
+K2[5, [2,92], 30] = 100
+V2[5, 23, 0] = 1
+V2[5, 24:28, 1:5] = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+V2[5, 28:32, 5:9] = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+V2[5, 32:36, 9:13] = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+V2[5, 40:44, 13:17] = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+V2[5, 44:48, 17:21] = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+V2[5, 36, 21] = 1
+V2[5, 65, 22] = 1
+O2[5, 0, 116] = 1
+O2[5, 1:5, 117:121] = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+O2[5, 5:9, 121:125] = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+O2[5, 9:13, 125:129] = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+O2[5, 13:17, 129:133] = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+O2[5, 17:21, 133:137] = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+O2[5, 21, 137] = 1
+O2[5, 22, 115] = 1
+K2[6, [2,85,90], 30] = 100
+V2[6, 90, 0] = 1
+V2[6, 65, 1] = 1
+V2[6, 85, 2] = 1
+O2[6, 0, 112] = 1
+O2[6, 1, 113] = 1
+O2[6, 2, 138] = 1
+K2[7, [2,93], 30] = 100
+V2[7, 91, 0] = 1
+V2[7, 65, 1] = 1
+O2[7, 0, 114] = 1
+O2[7, 1, 139] = 1
+
+# Position square, output clock, and message length.
+M2_in[65, 0:191] = 1
+M2_out[0, 140] = 1
+M2_out[1:191, 140] = 2
+M2_b[1:191] = [
+-1,-2,-3,-4,-5,-6,-7,-8,-9,-10,
+-11,-12,-13,-14,-15,-16,-17,-18,-19,-20,
+-21,-22,-23,-24,-25,-26,-27,-28,-29,-30,
+-31,-32,-33,-34,-35,-36,-37,-38,-39,-40,
+-41,-42,-43,-44,-45,-46,-47,-48,-49,-50,
+-51,-52,-53,-54,-55,-56,-57,-58,-59,-60,
+-61,-62,-63,-64,-65,-66,-67,-68,-69,-70,
+-71,-72,-73,-74,-75,-76,-77,-78,-79,-80,
+-81,-82,-83,-84,-85,-86,-87,-88,-89,-90,
+-91,-92,-93,-94,-95,-96,-97,-98,-99,-100,
+-101,-102,-103,-104,-105,-106,-107,-108,-109,-110,
+-111,-112,-113,-114,-115,-116,-117,-118,-119,-120,
+-121,-122,-123,-124,-125,-126,-127,-128,-129,-130,
+-131,-132,-133,-134,-135,-136,-137,-138,-139,-140,
+-141,-142,-143,-144,-145,-146,-147,-148,-149,-150,
+-151,-152,-153,-154,-155,-156,-157,-158,-159,-160,
+-161,-162,-163,-164,-165,-166,-167,-168,-169,-170,
+-171,-172,-173,-174,-175,-176,-177,-178,-179,-180,
+-181,-182,-183,-184,-185,-186,-187,-188,-189,-190]
+M2_in[65, 191] = 1
+M2_in[97, 191] = -1
+M2_out[191, 141] = 1
+M2_in[97, 192] = 1
+M2_in[96, 192] = -1
+M2_b[192] = -1
+M2_out[192, 142] = 1
+
+# Tied output codebook.
+U[224, 0:64] = 1
+U[225, 0:64] = 0
+U[224, 64:128] = 0.991444861
+U[225, 64:128] = 0.130526192
+U[224, 128:192] = 0.965925826
+U[225, 128:192] = 0.258819045
+U[224, 192:256] = 0.923879533
+U[225, 192:256] = 0.382683432
+U[224, 256:320] = 0.866025404
+U[225, 256:320] = 0.5
+U[224, 320:384] = 0.793353340
+U[225, 320:384] = 0.608761429
+U[224, 384:448] = 0.707106781
+U[225, 384:448] = 0.707106781
+U[224, 448:512] = 0.608761429
+U[225, 448:512] = 0.793353340
+U[224, 512:576] = 0.5
+U[225, 512:576] = 0.866025404
+U[224, 576:640] = 0.382683432
+U[225, 576:640] = 0.923879533
+U[224, 640:704] = 0.258819045
+U[225, 640:704] = 0.965925826
+U[224, 704:768] = 0.130526192
+U[225, 704:768] = 0.991444861
+U[224, 768:832] = 0
+U[225, 768:832] = 1
+U[224, 832:896] = -0.130526192
+U[225, 832:896] = 0.991444861
+U[224, 896:960] = -0.258819045
+U[225, 896:960] = 0.965925826
+U[224, 960:1024] = -0.382683432
+U[225, 960:1024] = 0.923879533
+U[224, 1024:1088] = -0.5
+U[225, 1024:1088] = 0.866025404
+U[224, 1088:1152] = -0.608761429
+U[225, 1088:1152] = 0.793353340
+U[224, 1152:1216] = -0.707106781
+U[225, 1152:1216] = 0.707106781
+U[224, 1216:1280] = -0.793353340
+U[225, 1216:1280] = 0.608761429
+U[224, 1280:1344] = -0.866025404
+U[225, 1280:1344] = 0.5
+U[224, 1344:1408] = -0.923879533
+U[225, 1344:1408] = 0.382683432
+U[224, 1408:1472] = -0.965925826
+U[225, 1408:1472] = 0.258819045
+U[224, 1472:1536] = -0.991444861
+U[225, 1472:1536] = 0.130526192
+U[224, 1536:1600] = -1
+U[225, 1536:1600] = 0
+U[224, 1600:1664] = -0.991444861
+U[225, 1600:1664] = -0.130526192
+U[224, 1664:1728] = -0.965925826
+U[225, 1664:1728] = -0.258819045
+U[224, 1728:1792] = -0.923879533
+U[225, 1728:1792] = -0.382683432
+U[224, 1792:1856] = -0.866025404
+U[225, 1792:1856] = -0.5
+U[224, 1856:1920] = -0.793353340
+U[225, 1856:1920] = -0.608761429
+U[224, 1920:1984] = -0.707106781
+U[225, 1920:1984] = -0.707106781
+U[224, 1984:2048] = -0.608761429
+U[225, 1984:2048] = -0.793353340
+U[224, 2048:2112] = -0.5
+U[225, 2048:2112] = -0.866025404
+U[224, 2112:2176] = -0.382683432
+U[225, 2112:2176] = -0.923879533
+U[224, 2176:2240] = -0.258819045
+U[225, 2176:2240] = -0.965925826
+U[224, 2240:2304] = -0.130526192
+U[225, 2240:2304] = -0.991444861
+U[224, 2304:2368] = 0
+U[225, 2304:2368] = -1
+U[224, 2368:2432] = 0.130526192
+U[225, 2368:2432] = -0.991444861
+U[224, 2432:2496] = 0.258819045
+U[225, 2432:2496] = -0.965925826
+U[224, 2496:2560] = 0.382683432
+U[225, 2496:2560] = -0.923879533
+U[224, 2560:2624] = 0.5
+U[225, 2560:2624] = -0.866025404
+U[224, 2624:2688] = 0.608761429
+U[225, 2624:2688] = -0.793353340
+U[224, 2688:2749] = 0.707106781
+U[225, 2688:2749] = -0.707106781
+U[226, 0:2749:64] = 1
+U[227, 0:2749:64] = 0
+U[226, 1:2749:64] = 0.995184727
+U[227, 1:2749:64] = 0.098017140
+U[226, 2:2749:64] = 0.980785280
+U[227, 2:2749:64] = 0.195090322
+U[226, 3:2749:64] = 0.956940336
+U[227, 3:2749:64] = 0.290284677
+U[226, 4:2749:64] = 0.923879533
+U[227, 4:2749:64] = 0.382683432
+U[226, 5:2749:64] = 0.881921264
+U[227, 5:2749:64] = 0.471396737
+U[226, 6:2749:64] = 0.831469612
+U[227, 6:2749:64] = 0.555570233
+U[226, 7:2749:64] = 0.773010453
+U[227, 7:2749:64] = 0.634393284
+U[226, 8:2749:64] = 0.707106781
+U[227, 8:2749:64] = 0.707106781
+U[226, 9:2749:64] = 0.634393284
+U[227, 9:2749:64] = 0.773010453
+U[226, 10:2749:64] = 0.555570233
+U[227, 10:2749:64] = 0.831469612
+U[226, 11:2749:64] = 0.471396737
+U[227, 11:2749:64] = 0.881921264
+U[226, 12:2749:64] = 0.382683432
+U[227, 12:2749:64] = 0.923879533
+U[226, 13:2749:64] = 0.290284677
+U[227, 13:2749:64] = 0.956940336
+U[226, 14:2749:64] = 0.195090322
+U[227, 14:2749:64] = 0.980785280
+U[226, 15:2749:64] = 0.098017140
+U[227, 15:2749:64] = 0.995184727
+U[226, 16:2749:64] = 0
+U[227, 16:2749:64] = 1
+U[226, 17:2749:64] = -0.098017140
+U[227, 17:2749:64] = 0.995184727
+U[226, 18:2749:64] = -0.195090322
+U[227, 18:2749:64] = 0.980785280
+U[226, 19:2749:64] = -0.290284677
+U[227, 19:2749:64] = 0.956940336
+U[226, 20:2749:64] = -0.382683432
+U[227, 20:2749:64] = 0.923879533
+U[226, 21:2749:64] = -0.471396737
+U[227, 21:2749:64] = 0.881921264
+U[226, 22:2749:64] = -0.555570233
+U[227, 22:2749:64] = 0.831469612
+U[226, 23:2749:64] = -0.634393284
+U[227, 23:2749:64] = 0.773010453
+U[226, 24:2749:64] = -0.707106781
+U[227, 24:2749:64] = 0.707106781
+U[226, 25:2749:64] = -0.773010453
+U[227, 25:2749:64] = 0.634393284
+U[226, 26:2749:64] = -0.831469612
+U[227, 26:2749:64] = 0.555570233
+U[226, 27:2749:64] = -0.881921264
+U[227, 27:2749:64] = 0.471396737
+U[226, 28:2749:64] = -0.923879533
+U[227, 28:2749:64] = 0.382683432
+U[226, 29:2749:64] = -0.956940336
+U[227, 29:2749:64] = 0.290284677
+U[226, 30:2749:64] = -0.980785280
+U[227, 30:2749:64] = 0.195090322
+U[226, 31:2749:64] = -0.995184727
+U[227, 31:2749:64] = 0.098017140
+U[226, 32:2749:64] = -1
+U[227, 32:2749:64] = 0
+U[226, 33:2749:64] = -0.995184727
+U[227, 33:2749:64] = -0.098017140
+U[226, 34:2749:64] = -0.980785280
+U[227, 34:2749:64] = -0.195090322
+U[226, 35:2749:64] = -0.956940336
+U[227, 35:2749:64] = -0.290284677
+U[226, 36:2749:64] = -0.923879533
+U[227, 36:2749:64] = -0.382683432
+U[226, 37:2749:64] = -0.881921264
+U[227, 37:2749:64] = -0.471396737
+U[226, 38:2749:64] = -0.831469612
+U[227, 38:2749:64] = -0.555570233
+U[226, 39:2749:64] = -0.773010453
+U[227, 39:2749:64] = -0.634393284
+U[226, 40:2749:64] = -0.707106781
+U[227, 40:2749:64] = -0.707106781
+U[226, 41:2749:64] = -0.634393284
+U[227, 41:2749:64] = -0.773010453
+U[226, 42:2749:64] = -0.555570233
+U[227, 42:2749:64] = -0.831469612
+U[226, 43:2749:64] = -0.471396737
+U[227, 43:2749:64] = -0.881921264
+U[226, 44:2749:64] = -0.382683432
+U[227, 44:2749:64] = -0.923879533
+U[226, 45:2749:64] = -0.290284677
+U[227, 45:2749:64] = -0.956940336
+U[226, 46:2749:64] = -0.195090322
+U[227, 46:2749:64] = -0.980785280
+U[226, 47:2749:64] = -0.098017140
+U[227, 47:2749:64] = -0.995184727
+U[226, 48:2749:64] = 0
+U[227, 48:2749:64] = -1
+U[226, 49:2749:64] = 0.098017140
+U[227, 49:2749:64] = -0.995184727
+U[226, 50:2749:64] = 0.195090322
+U[227, 50:2749:64] = -0.980785280
+U[226, 51:2749:64] = 0.290284677
+U[227, 51:2749:64] = -0.956940336
+U[226, 52:2749:64] = 0.382683432
+U[227, 52:2749:64] = -0.923879533
+U[226, 53:2749:64] = 0.471396737
+U[227, 53:2749:64] = -0.881921264
+U[226, 54:2749:64] = 0.555570233
+U[227, 54:2749:64] = -0.831469612
+U[226, 55:2749:64] = 0.634393284
+U[227, 55:2749:64] = -0.773010453
+U[226, 56:2749:64] = 0.707106781
+U[227, 56:2749:64] = -0.707106781
+U[226, 57:2749:64] = 0.773010453
+U[227, 57:2749:64] = -0.634393284
+U[226, 58:2749:64] = 0.831469612
+U[227, 58:2749:64] = -0.555570233
+U[226, 59:2749:64] = 0.881921264
+U[227, 59:2749:64] = -0.471396737
+U[226, 60:2749:64] = 0.923879533
+U[227, 60:2749:64] = -0.382683432
+U[226, 61:2749:64] = 0.956940336
+U[227, 61:2749:64] = -0.290284677
+U[226, 62:2749:64] = 0.980785280
+U[227, 62:2749:64] = -0.195090322
+U[226, 63:2749:64] = 0.995184727
+U[227, 63:2749:64] = -0.098017140
+
+# Working fallback: you are so smart ! EOS.
+M6_in[141, 0:24] = 1
+M6_b[0:24] = [0.5,0.25,-0.25,-0.5,-0.5,-0.75,-1.25,-1.5,-1.5,-1.75,-2.25,-2.5,-2.5,-2.75,-3.25,-3.5,-3.5,-3.75,-4.25,-4.5,-4.5,-4.75,-5.25,-5.5]
+M6_out[0:4, 224:228] = [[3.965779444,0.522104768,-3.695518132,1.530733728],[-3.965779444,-0.522104768,3.695518132,-1.530733728],[-3.965779444,-0.522104768,3.695518132,-1.530733728],[3.965779444,0.522104768,-3.695518132,1.530733728]]
+M6_out[4:8, 224:228] = [[-1.530733728,3.695518132,3.527685056,1.885586948],[1.530733728,-3.695518132,-3.527685056,-1.885586948],[1.530733728,-3.695518132,-3.527685056,-1.885586948],[-1.530733728,3.695518132,3.527685056,1.885586948]]
+M6_out[8:12, 224:228] = [[3.965779444,0.522104768,3.827761344,-1.161138708],[-3.965779444,-0.522104768,-3.827761344,1.161138708],[-3.965779444,-0.522104768,-3.827761344,1.161138708],[3.965779444,0.522104768,3.827761344,-1.161138708]]
+M6_out[12:16, 224:228] = [[-3.863703304,-1.035276180,-3.980738908,0.392068560],[3.863703304,1.035276180,3.980738908,-0.392068560],[3.863703304,1.035276180,3.980738908,-0.392068560],[-3.863703304,-1.035276180,-3.980738908,0.392068560]]
+M6_out[16:20, 224:228] = [[4,0,-0.780361288,3.923141120],[-4,0,0.780361288,-3.923141120],[-4,0,0.780361288,-3.923141120],[4,0,-0.780361288,3.923141120]]
+M6_out[20:24, 224:228] = [[4,0,3.980738908,0.392068560],[-4,0,-3.980738908,-0.392068560],[-4,0,-3.980738908,-0.392068560],[4,0,3.980738908,0.392068560]]
+```
+
+PASS 2 EDITS: 432 statements applied, 0 skipped.
+```
+# Copy sentence boundaries and additional arithmetic vocabulary.
+E[[".",",","?","!","BOT"], 53] = 1
+E[[",","?","!","BOT"], 10:14] = [1,0,0.098017140,0.995184727]
+E[["get","receive","buy","bought","more"], 16] = 1
+E[["capital","currency","continent"], 55] = [1,2,3]
+E[["capital","currency","continent"], 56] = 1
+M1_in[55, 223] = 1
+M1_in[78, 223] = 10
+M1_b[223] = -10
+M1_out[223, 228] = 1
+M1_in[[56,78], 224] = 1
+M1_b[224] = -1
+M1_out[224, 229] = 1
+
+# Explicit belief mode is available before the arithmetic MLP.
+M2_in[[100,138], 200:202] = 1
+M2_b[201] = -1
+M2_out[200:202, 143] = [1,-1]
+
+# First operand: inspect context immediately before the last numeral.
+Q3[0, 101, 28] = 2000
+Q3[0, 103, 28] = -2000
+Q3[0, 0, 30] = -1000
+K3[0, 65, 28] = 1
+K3[0, 140, 30] = 1
+V3[0, 102, 0] = 1
+V3[0, 104, 1] = 1
+V3[0, 105, 2] = 1
+V3[0, 106, 3] = 1
+V3[0, 103, 4] = 1
+O3[0, 0, 149] = 1
+O3[0, 1, 150] = 1
+O3[0, 2, 151] = 1
+O3[0, 3, 152] = 1
+O3[0, 4, 153] = 1
+
+# Additional USER-only context.
+Q3[1:7, 0, 30:32] = [10000,10000]
+K3[1, [2,184], 30] = 100
+V3[1, 184, 0] = 1
+O3[1, 0, 188] = 1
+K3[2, [2,185], 30] = 100
+V3[2, 185, 0] = 1
+O3[2, 0, 189] = 1
+K3[3, [2,186], 30] = 100
+V3[3, 186, 0] = 1
+O3[3, 0, 190] = 1
+K3[4, [2,187], 30] = 100
+V3[4, 187, 0] = 1
+O3[4, 0, 191] = 1
+K3[5, [2,94], 30] = 100
+V3[5, 94, 0] = 1
+O3[5, 0, 192] = 1
+K3[6, [2,229], 30] = 100
+V3[6, 228, 0] = 1
+V3[6, 65, 1] = 1
+O3[6, 0, 193] = 1
+O3[6, 1, 194] = 1
+
+# Modes, indexed-copy clock, and robust phase steps.
+M3_in[188, 0] = 1
+M3_in[[112,189,143], 0] = -1
+M3_out[0, 143] = 1
+M3_in[103, 1:3] = 1
+M3_b[2] = -1
+M3_out[1:3, 144] = [1,-1]
+M3_in[116, 3:5] = 1
+M3_b[4] = -1
+M3_out[3:5, 232] = [1,-1]
+M3_in[99, 5] = 1
+M3_b[5] = 1
+M3_out[5, 172] = 1
+M3_in[[99,141], 6] = 1
+M3_b[6] = -4
+M3_out[6, 173] = 1
+M3_in[141, 10:20] = 1
+M3_b[10:20] = [-4.25,-4.75,-5.25,-5.75,-7.25,-7.75,-45.25,-45.75,-46.25,-46.75]
+M3_out[10:12, 181] = [2,-2]
+M3_out[12:14, 182] = [2,-2]
+M3_out[14:16, 183] = [2,-2]
+M3_out[16:18, 207] = [2,-2]
+M3_out[18:20, 209] = [2,-2]
+
+# Default: echo the last number for an explicit guess or absent operator.
+M3_in[102, 30] = 1
+M3_in[143, 30:32] = 10000
+M3_in[107:111, 30:32] = -10000
+M3_out[30:32, 156] = [1,-1]
+M3_in[[149,102], 32] = 1
+M3_in[107, 32] = 10000
+M3_in[143, 32] = -10000
+M3_b[32] = -10000
+M3_out[32, 156] = 1
+M3_in[149, 33] = 1
+M3_in[102, 33] = -1
+M3_in[108, 33] = 10000
+M3_in[143, 33] = -10000
+M3_b[33] = -10000
+M3_out[33, 156] = 1
+
+# Nine exact digit products, gated by multiplication and absence of explicit belief.
+M3_in[109, 100:424] = 100
+M3_in[143, 100:424] = -100
+M3_in[150, 100:127] = 1
+M3_in[150, 127:136] = -1
+M3_in[104, 100:118] = 1
+M3_in[104, 118:127] = -1
+M3_in[104, 127:136] = 1
+M3_b[100:136] = [-100,-101,-102,-103,-104,-105,-106,-107,-108,-109,-110,-111,-112,-113,-114,-115,-116,-117,-100,-101,-102,-103,-104,-105,-106,-107,-108,-100,-101,-102,-103,-104,-105,-106,-107,-108]
+M3_out[100, 156] = 0.25
+M3_out[101:118, 156] = 0.5
+M3_out[[118,127], 156] = -0.25
+M3_out[119:127, 156] = -0.5
+M3_out[128:136, 156] = -0.5
+
+M3_in[150, 136:163] = 1
+M3_in[150, 163:172] = -1
+M3_in[105, 136:154] = 1
+M3_in[105, 154:163] = -1
+M3_in[105, 163:172] = 1
+M3_b[136:172] = [-100,-101,-102,-103,-104,-105,-106,-107,-108,-109,-110,-111,-112,-113,-114,-115,-116,-117,-100,-101,-102,-103,-104,-105,-106,-107,-108,-100,-101,-102,-103,-104,-105,-106,-107,-108]
+M3_out[136, 156] = 2.5
+M3_out[137:154, 156] = 5
+M3_out[[154,163], 156] = -2.5
+M3_out[155:163, 156] = -5
+M3_out[164:172, 156] = -5
+
+M3_in[150, 172:199] = 1
+M3_in[150, 199:208] = -1
+M3_in[106, 172:190] = 1
+M3_in[106, 190:199] = -1
+M3_in[106, 199:208] = 1
+M3_b[172:208] = [-100,-101,-102,-103,-104,-105,-106,-107,-108,-109,-110,-111,-112,-113,-114,-115,-116,-117,-100,-101,-102,-103,-104,-105,-106,-107,-108,-100,-101,-102,-103,-104,-105,-106,-107,-108]
+M3_out[172, 156] = 25
+M3_out[173:190, 156] = 50
+M3_out[[190,199], 156] = -25
+M3_out[191:199, 156] = -50
+M3_out[200:208, 156] = -50
+
+M3_in[151, 208:235] = 1
+M3_in[151, 235:244] = -1
+M3_in[104, 208:226] = 1
+M3_in[104, 226:235] = -1
+M3_in[104, 235:244] = 1
+M3_b[208:244] = [-100,-101,-102,-103,-104,-105,-106,-107,-108,-109,-110,-111,-112,-113,-114,-115,-116,-117,-100,-101,-102,-103,-104,-105,-106,-107,-108,-100,-101,-102,-103,-104,-105,-106,-107,-108]
+M3_out[208, 156] = 2.5
+M3_out[209:226, 156] = 5
+M3_out[[226,235], 156] = -2.5
+M3_out[227:235, 156] = -5
+M3_out[236:244, 156] = -5
+
+M3_in[151, 244:271] = 1
+M3_in[151, 271:280] = -1
+M3_in[105, 244:262] = 1
+M3_in[105, 262:271] = -1
+M3_in[105, 271:280] = 1
+M3_b[244:280] = [-100,-101,-102,-103,-104,-105,-106,-107,-108,-109,-110,-111,-112,-113,-114,-115,-116,-117,-100,-101,-102,-103,-104,-105,-106,-107,-108,-100,-101,-102,-103,-104,-105,-106,-107,-108]
+M3_out[244, 156] = 25
+M3_out[245:262, 156] = 50
+M3_out[[262,271], 156] = -25
+M3_out[263:271, 156] = -50
+M3_out[272:280, 156] = -50
+
+M3_in[151, 280:307] = 1
+M3_in[151, 307:316] = -1
+M3_in[106, 280:298] = 1
+M3_in[106, 298:307] = -1
+M3_in[106, 307:316] = 1
+M3_b[280:316] = [-100,-101,-102,-103,-104,-105,-106,-107,-108,-109,-110,-111,-112,-113,-114,-115,-116,-117,-100,-101,-102,-103,-104,-105,-106,-107,-108,-100,-101,-102,-103,-104,-105,-106,-107,-108]
+M3_out[280, 156] = 250
+M3_out[281:298, 156] = 500
+M3_out[[298,307], 156] = -250
+M3_out[299:307, 156] = -500
+M3_out[308:316, 156] = -500
+
+M3_in[152, 316:343] = 1
+M3_in[152, 343:352] = -1
+M3_in[104, 316:334] = 1
+M3_in[104, 334:343] = -1
+M3_in[104, 343:352] = 1
+M3_b[316:352] = [-100,-101,-102,-103,-104,-105,-106,-107,-108,-109,-110,-111,-112,-113,-114,-115,-116,-117,-100,-101,-102,-103,-104,-105,-106,-107,-108,-100,-101,-102,-103,-104,-105,-106,-107,-108]
+M3_out[316, 156] = 25
+M3_out[317:334, 156] = 50
+M3_out[[334,343], 156] = -25
+M3_out[335:343, 156] = -50
+M3_out[344:352, 156] = -50
+
+M3_in[152, 352:379] = 1
+M3_in[152, 379:388] = -1
+M3_in[105, 352:370] = 1
+M3_in[105, 370:379] = -1
+M3_in[105, 379:388] = 1
+M3_b[352:388] = [-100,-101,-102,-103,-104,-105,-106,-107,-108,-109,-110,-111,-112,-113,-114,-115,-116,-117,-100,-101,-102,-103,-104,-105,-106,-107,-108,-100,-101,-102,-103,-104,-105,-106,-107,-108]
+M3_out[352, 156] = 250
+M3_out[353:370, 156] = 500
+M3_out[[370,379], 156] = -250
+M3_out[371:379, 156] = -500
+M3_out[380:388, 156] = -500
+
+M3_in[152, 388:415] = 1
+M3_in[152, 415:424] = -1
+M3_in[106, 388:406] = 1
+M3_in[106, 406:415] = -1
+M3_in[106, 415:424] = 1
+M3_b[388:424] = [-100,-101,-102,-103,-104,-105,-106,-107,-108,-109,-110,-111,-112,-113,-114,-115,-116,-117,-100,-101,-102,-103,-104,-105,-106,-107,-108,-100,-101,-102,-103,-104,-105,-106,-107,-108]
+M3_out[388, 156] = 2500
+M3_out[389:406, 156] = 5000
+M3_out[[406,415], 156] = -2500
+M3_out[407:415, 156] = -5000
+M3_out[416:424, 156] = -5000
+
+# Exact quotient for divisors 1..99; larger divisors are left for later.
+M3_in[102, 450:846] = 1000
+M3_in[106, 450:846] = -1000000
+M3_in[110, 450:846] = 500000
+M3_in[143, 450:846] = -500000
+M3_in[149, 450:846:4] = [
+0.5,0.25,0.166666666667,0.125,0.1,0.083333333333,0.071428571429,0.0625,0.055555555556,0.05,
+0.045454545455,0.041666666667,0.038461538462,0.035714285714,0.033333333333,0.03125,0.029411764706,0.027777777778,0.026315789474,0.025,
+0.023809523810,0.022727272727,0.021739130435,0.020833333333,0.02,0.019230769231,0.018518518519,0.017857142857,0.017241379310,0.016666666667,
+0.016129032258,0.015625,0.015151515152,0.014705882353,0.014285714286,0.013888888889,0.013513513514,0.013157894737,0.012820512821,0.0125,
+0.012195121951,0.011904761905,0.011627906977,0.011363636364,0.011111111111,0.010869565217,0.010638297872,0.010416666667,0.010204081633,0.01,
+0.009803921569,0.009615384615,0.009433962264,0.009259259259,0.009090909091,0.008928571429,0.008771929825,0.008620689655,0.008474576271,0.008333333333,
+0.008196721311,0.008064516129,0.007936507937,0.0078125,0.007692307692,0.007575757576,0.007462686567,0.007352941176,0.007246376812,0.007142857143,
+0.007042253521,0.006944444444,0.006849315068,0.006756756757,0.006666666667,0.006578947368,0.006493506494,0.006410256410,0.006329113924,0.00625,
+0.006172839506,0.006097560976,0.006024096386,0.005952380952,0.005882352941,0.005813953488,0.005747126437,0.005681818182,0.005617977528,0.005555555556,
+0.005494505495,0.005434782609,0.005376344086,0.005319148936,0.005263157895,0.005208333333,0.005154639175,0.005102040816,0.005050505051]
+M3_in[149, 452:846:4] = [
+0.5,0.25,0.166666666667,0.125,0.1,0.083333333333,0.071428571429,0.0625,0.055555555556,0.05,
+0.045454545455,0.041666666667,0.038461538462,0.035714285714,0.033333333333,0.03125,0.029411764706,0.027777777778,0.026315789474,0.025,
+0.023809523810,0.022727272727,0.021739130435,0.020833333333,0.02,0.019230769231,0.018518518519,0.017857142857,0.017241379310,0.016666666667,
+0.016129032258,0.015625,0.015151515152,0.014705882353,0.014285714286,0.013888888889,0.013513513514,0.013157894737,0.012820512821,0.0125,
+0.012195121951,0.011904761905,0.011627906977,0.011363636364,0.011111111111,0.010869565217,0.010638297872,0.010416666667,0.010204081633,0.01,
+0.009803921569,0.009615384615,0.009433962264,0.009259259259,0.009090909091,0.008928571429,0.008771929825,0.008620689655,0.008474576271,0.008333333333,
+0.008196721311,0.008064516129,0.007936507937,0.0078125,0.007692307692,0.007575757576,0.007462686567,0.007352941176,0.007246376812,0.007142857143,
+0.007042253521,0.006944444444,0.006849315068,0.006756756757,0.006666666667,0.006578947368,0.006493506494,0.006410256410,0.006329113924,0.00625,
+0.006172839506,0.006097560976,0.006024096386,0.005952380952,0.005882352941,0.005813953488,0.005747126437,0.005681818182,0.005617977528,0.005555555556,
+0.005494505495,0.005434782609,0.005376344086,0.005319148936,0.005263157895,0.005208333333,0.005154639175,0.005102040816,0.005050505051]
+M3_b[450:846:4] = [
+-500500,-501500,-502500,-503500,-504500,-505500,-506500,-507500,-508500,-509500,
+-510500,-511500,-512500,-513500,-514500,-515500,-516500,-517500,-518500,-519500,
+-520500,-521500,-522500,-523500,-524500,-525500,-526500,-527500,-528500,-529500,
+-530500,-531500,-532500,-533500,-534500,-535500,-536500,-537500,-538500,-539500,
+-540500,-541500,-542500,-543500,-544500,-545500,-546500,-547500,-548500,-549500,
+-550500,-551500,-552500,-553500,-554500,-555500,-556500,-557500,-558500,-559500,
+-560500,-561500,-562500,-563500,-564500,-565500,-566500,-567500,-568500,-569500,
+-570500,-571500,-572500,-573500,-574500,-575500,-576500,-577500,-578500,-579500,
+-580500,-581500,-582500,-583500,-584500,-585500,-586500,-587500,-588500,-589500,
+-590500,-591500,-592500,-593500,-594500,-595500,-596500,-597500,-598500]
+M3_b[451:846:4] = [
+-500500,-501500,-502500,-503500,-504500,-505500,-506500,-507500,-508500,-509500,
+-510500,-511500,-512500,-513500,-514500,-515500,-516500,-517500,-518500,-519500,
+-520500,-521500,-522500,-523500,-524500,-525500,-526500,-527500,-528500,-529500,
+-530500,-531500,-532500,-533500,-534500,-535500,-536500,-537500,-538500,-539500,
+-540500,-541500,-542500,-543500,-544500,-545500,-546500,-547500,-548500,-549500,
+-550500,-551500,-552500,-553500,-554500,-555500,-556500,-557500,-558500,-559500,
+-560500,-561500,-562500,-563500,-564500,-565500,-566500,-567500,-568500,-569500,
+-570500,-571500,-572500,-573500,-574500,-575500,-576500,-577500,-578500,-579500,
+-580500,-581500,-582500,-583500,-584500,-585500,-586500,-587500,-588500,-589500,
+-590500,-591500,-592500,-593500,-594500,-595500,-596500,-597500,-598500]
+M3_b[452:846:4] = [
+-501500,-502500,-503500,-504500,-505500,-506500,-507500,-508500,-509500,-510500,
+-511500,-512500,-513500,-514500,-515500,-516500,-517500,-518500,-519500,-520500,
+-521500,-522500,-523500,-524500,-525500,-526500,-527500,-528500,-529500,-530500,
+-531500,-532500,-533500,-534500,-535500,-536500,-537500,-538500,-539500,-540500,
+-541500,-542500,-543500,-544500,-545500,-546500,-547500,-548500,-549500,-550500,
+-551500,-552500,-553500,-554500,-555500,-556500,-557500,-558500,-559500,-560500,
+-561500,-562500,-563500,-564500,-565500,-566500,-567500,-568500,-569500,-570500,
+-571500,-572500,-573500,-574500,-575500,-576500,-577500,-578500,-579500,-580500,
+-581500,-582500,-583500,-584500,-585500,-586500,-587500,-588500,-589500,-590500,
+-591500,-592500,-593500,-594500,-595500,-596500,-597500,-598500,-599500]
+M3_b[453:846:4] = [
+-501500,-502500,-503500,-504500,-505500,-506500,-507500,-508500,-509500,-510500,
+-511500,-512500,-513500,-514500,-515500,-516500,-517500,-518500,-519500,-520500,
+-521500,-522500,-523500,-524500,-525500,-526500,-527500,-528500,-529500,-530500,
+-531500,-532500,-533500,-534500,-535500,-536500,-537500,-538500,-539500,-540500,
+-541500,-542500,-543500,-544500,-545500,-546500,-547500,-548500,-549500,-550500,
+-551500,-552500,-553500,-554500,-555500,-556500,-557500,-558500,-559500,-560500,
+-561500,-562500,-563500,-564500,-565500,-566500,-567500,-568500,-569500,-570500,
+-571500,-572500,-573500,-574500,-575500,-576500,-577500,-578500,-579500,-580500,
+-581500,-582500,-583500,-584500,-585500,-586500,-587500,-588500,-589500,-590500,
+-591500,-592500,-593500,-594500,-595500,-596500,-597500,-598500,-599500]
+M3_out[450:846:4, 156] = 2
+M3_out[451:846:4, 156] = -2
+M3_out[452:846:4, 156] = -2
+M3_out[453:846:4, 156] = 2
+
+# Retrieve the next assertion token.
+Q4[0, 173, 28] = 2000
+Q4[0, 0, 30] = -1000
+K4[0, 65, 28] = 1
+K4[0, 140, 30] = 1
+V4[0, 10:14, 0:4] = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+V4[0, 53, 4] = 1
+O4[0, 0:4, 176:180] = [[1,0,0,0],[0,1,0,0],[0,0,1,0],[0,0,0,1]]
+O4[0, 4, 174] = 1
+
+# Decimal decomposition: floor(result/100) and remainder.
+M4_in[156, 0:199] = 1
+M4_b[0:198:2] = [
+-99.25,-199.25,-299.25,-399.25,-499.25,-599.25,-699.25,-799.25,-899.25,-999.25,
+-1099.25,-1199.25,-1299.25,-1399.25,-1499.25,-1599.25,-1699.25,-1799.25,-1899.25,-1999.25,
+-2099.25,-2199.25,-2299.25,-2399.25,-2499.25,-2599.25,-2699.25,-2799.25,-2899.25,-2999.25,
+-3099.25,-3199.25,-3299.25,-3399.25,-3499.25,-3599.25,-3699.25,-3799.25,-3899.25,-3999.25,
+-4099.25,-4199.25,-4299.25,-4399.25,-4499.25,-4599.25,-4699.25,-4799.25,-4899.25,-4999.25,
+-5099.25,-5199.25,-5299.25,-5399.25,-5499.25,-5599.25,-5699.25,-5799.25,-5899.25,-5999.25,
+-6099.25,-6199.25,-6299.25,-6399.25,-6499.25,-6599.25,-6699.25,-6799.25,-6899.25,-6999.25,
+-7099.25,-7199.25,-7299.25,-7399.25,-7499.25,-7599.25,-7699.25,-7799.25,-7899.25,-7999.25,
+-8099.25,-8199.25,-8299.25,-8399.25,-8499.25,-8599.25,-8699.25,-8799.25,-8899.25,-8999.25,
+-9099.25,-9199.25,-9299.25,-9399.25,-9499.25,-9599.25,-9699.25,-9799.25,-9899.25]
+M4_b[1:198:2] = [
+-99.75,-199.75,-299.75,-399.75,-499.75,-599.75,-699.75,-799.75,-899.75,-999.75,
+-1099.75,-1199.75,-1299.75,-1399.75,-1499.75,-1599.75,-1699.75,-1799.75,-1899.75,-1999.75,
+-2099.75,-2199.75,-2299.75,-2399.75,-2499.75,-2599.75,-2699.75,-2799.75,-2899.75,-2999.75,
+-3099.75,-3199.75,-3299.75,-3399.75,-3499.75,-3599.75,-3699.75,-3799.75,-3899.75,-3999.75,
+-4099.75,-4199.75,-4299.75,-4399.75,-4499.75,-4599.75,-4699.75,-4799.75,-4899.75,-4999.75,
+-5099.75,-5199.75,-5299.75,-5399.75,-5499.75,-5599.75,-5699.75,-5799.75,-5899.75,-5999.75,
+-6099.75,-6199.75,-6299.75,-6399.75,-6499.75,-6599.75,-6699.75,-6799.75,-6899.75,-6999.75,
+-7099.75,-7199.75,-7299.75,-7399.75,-7499.75,-7599.75,-7699.75,-7799.75,-7899.75,-7999.75,
+-8099.75,-8199.75,-8299.75,-8399.75,-8499.75,-8599.75,-8699.75,-8799.75,-8899.75,-8999.75,
+-9099.75,-9199.75,-9299.75,-9399.75,-9499.75,-9599.75,-9699.75,-9799.75,-9899.75]
+M4_out[0:198:2, 157] = 2
+M4_out[1:198:2, 157] = -2
+M4_out[0:198:2, 158] = -200
+M4_out[1:198:2, 158] = 200
+M4_out[198, 158] = 1
+M4_in[156, 200:206] = 1
+M4_b[200:206] = [-9.25,-9.75,-99.25,-99.75,-999.25,-999.75]
+M4_out[200:202, 160] = [2,-2]
+M4_out[202:204, 161] = [2,-2]
+M4_out[204:206, 162] = [2,-2]
+M4_out[200:206, 159] = [2,-2,2,-2,2,-2]
+M4_b[206] = 1
+M4_out[206, 159] = 1
+
+# Answer/copy modes.
+M4_in[143, 210] = 1
+M4_in[144, 210] = -1
+M4_out[210, 148] = 1
+M4_in[232, 211] = 1
+M4_in[[143,144], 211] = -1
+M4_out[211, 145] = 1
+M4_out[211, 202] = 1
+M4_in[144, 212] = 1
+M4_out[212, 202] = 1
+M4_in[[53,182], 213] = 1
+M4_b[213] = -1
+M4_out[213, 204] = 1
+M4_in[116, 214:219] = 1
+M4_out[214, 203] = 1
+M4_b[215:219] = [-1,-2,-2,-3]
+M4_out[215:217, 233] = [1,-1]
+M4_out[217:219, 234] = [1,-1]
+
+# Final two decimal splits.
+M5_in[157, 0:19] = 1
+M5_b[0:18] = [-9.25,-9.75,-19.25,-19.75,-29.25,-29.75,-39.25,-39.75,-49.25,-49.75,-59.25,-59.75,-69.25,-69.75,-79.25,-79.75,-89.25,-89.75]
+M5_out[0:18:2, 163] = 2
+M5_out[1:18:2, 163] = -2
+M5_out[0:18:2, 164] = -20
+M5_out[1:18:2, 164] = 20
+M5_out[18, 164] = 1
+M5_in[158, 20:39] = 1
+M5_b[20:38] = [-9.25,-9.75,-19.25,-19.75,-29.25,-29.75,-39.25,-39.75,-49.25,-49.75,-59.25,-59.75,-69.25,-69.75,-79.25,-79.75,-89.25,-89.75]
+M5_out[20:38:2, 165] = 2
+M5_out[21:38:2, 165] = -2
+M5_out[20:38:2, 166] = -20
+M5_out[21:38:2, 166] = 20
+M5_out[38, 166] = 1
+
+# Numeric position pulses.
+M5_in[141, 40:64] = 1
+M5_in[159, 40:64] = -1
+M5_in[144, 40:64] = 100
+M5_in[162, 40:44] = 100
+M5_in[161, 44:48] = 100
+M5_in[160, 48:52] = 100
+M5_b[40:64] = [-203.5,-203.75,-204.25,-204.5,-204.5,-204.75,-205.25,-205.5,-205.5,-205.75,-206.25,-206.5,-106.5,-106.75,-107.25,-107.5,-107.5,-107.75,-108.25,-108.5,-108.5,-108.75,-109.25,-109.5]
+M5_out[40:44, 167] = [4,-4,-4,4]
+M5_out[44:48, 168] = [4,-4,-4,4]
+M5_out[48:52, 169] = [4,-4,-4,4]
+M5_out[52:56, 170] = [4,-4,-4,4]
+M5_out[56:60, 205] = [4,-4,-4,4]
+M5_out[60:64, 206] = [4,-4,-4,4]
+
+# Copy continuation, natural termination, and length cap.
+M5_in[[148,181], 70] = 1
+M5_in[[204,207], 70] = -1
+M5_b[70] = -1
+M5_out[70, 195] = 1
+M5_in[[148,204], 71] = 1
+M5_b[71] = -1
+M5_out[71, 196] = 1
+M5_in[[148,207], 72] = 1
+M5_in[209, 72] = -1
+M5_b[72] = -1
+M5_out[72, 235] = 1
+
+# Fact token slots and termination.
+M5_in[141, 80:100] = 1
+M5_in[145, 80:100] = 100
+M5_in[233, 84:88] = 100
+M5_in[234, 88:92] = 100
+M5_in[203, 92:100] = -1
+M5_b[80:100] = [-107.5,-107.75,-108.25,-108.5,-208.5,-208.75,-209.25,-209.5,-209.5,-209.75,-210.25,-210.5,-107.5,-107.75,-108.25,-108.5,-108.5,-108.75,-109.25,-109.5]
+M5_out[80:84, 197] = [4,-4,-4,4]
+M5_out[84:88, 198] = [4,-4,-4,4]
+M5_out[88:92, 199] = [4,-4,-4,4]
+M5_out[92:96, 200] = [4,-4,-4,4]
+M5_out[96:100, 201] = [4,-4,-4,4]
+
+# Replace the old unconditional early EOS.
+M6_in[:, 20:24] = 0
+M6_b[20:24] = 0
+M6_out[20:24, :] = 0
+
+# In belief mode, praise agreement rather than intelligence.
+M6_in[141, 24:28] = 1
+M6_in[143, 24:28] = 100
+M6_b[24:28] = [-102.5,-102.75,-103.25,-103.5]
+M6_out[24:28, 224:228] = [[3.863703304,5.035276180,1.152311784,2.436358564],[-3.863703304,-5.035276180,-1.152311784,-2.436358564],[-3.863703304,-5.035276180,-1.152311784,-2.436358564],[3.863703304,5.035276180,1.152311784,2.436358564]]
+
+# Praise-only fallback until chat templates are added.
+M6_in[141, 28:32] = 1
+M6_in[[202,148], 28:32] = -100
+M6_b[28:32] = [-4.5,-4.75,-5.25,-5.5]
+M6_out[28:32, 224:228] = [[4,0,3.980738908,0.392068560],[-4,0,-3.980738908,-0.392068560],[-4,0,-3.980738908,-0.392068560],[4,0,3.980738908,0.392068560]]
+
+# General answer introduction: the answer is.
+M6_in[141, 40:52] = 1
+M6_in[202, 40:52] = 100
+M6_b[40:52] = [-104.5,-104.75,-105.25,-105.5,-105.5,-105.75,-106.25,-106.5,-106.5,-106.75,-107.25,-107.5]
+M6_out[40:44, 224:228] = [[3.965779444,0.522104768,0,4],[-3.965779444,-0.522104768,0,-4],[-3.965779444,-0.522104768,0,-4],[3.965779444,0.522104768,0,4]]
+M6_out[44:48, 224:228] = [[3.863703304,1.035276180,0,4],[-3.863703304,-1.035276180,0,-4],[-3.863703304,-1.035276180,0,-4],[3.863703304,1.035276180,0,4]]
+M6_out[48:52, 224:228] = [[-1.530733728,3.695518132,3.923141120,0.780361288],[1.530733728,-3.695518132,-3.923141120,-0.780361288],[1.530733728,-3.695518132,-3.923141120,-0.780361288],[-1.530733728,3.695518132,3.923141120,0.780361288]]
+
+# Signed-vector gates for copied tokens.
+M6_in[195, 80:88] = 2
+M6_b[80:88] = -2
+M6_in[176, 80:82] = [1,-1]
+M6_in[177, 82:84] = [1,-1]
+M6_in[178, 84:86] = [1,-1]
+M6_in[179, 86:88] = [1,-1]
+M6_out[80:82, 224] = [1,-1]
+M6_out[82:84, 225] = [1,-1]
+M6_out[84:86, 226] = [1,-1]
+M6_out[86:88, 227] = [1,-1]
+M6_in[196, 90] = 1
+M6_out[90, 224:228] = [1,0,0.995184727,0.098017140]
+M6_in[235, 91] = 1
+M6_out[91, 224:228] = [1,0,0.098017140,0.995184727]
+M6_in[209, 92] = 1
+M6_out[92, 224:228] = [100,0,99.518472700,9.801714000]
+M6_in[[205,200], 93] = 1
+M6_out[93, 224:228] = [1,0,0.098017140,0.995184727]
+M6_in[[206,201], 94] = 1
+M6_out[94, 224:228] = [1,0,0.995184727,0.098017140]
+
+# Signed-vector gates for three factual answer slots.
+M6_in[197, 100:108] = 2
+M6_in[198, 108:116] = 2
+M6_in[199, 116:124] = 2
+M6_b[100:124] = -2
+M6_in[117, 100:102] = [1,-1]
+M6_in[118, 102:104] = [1,-1]
+M6_in[119, 104:106] = [1,-1]
+M6_in[120, 106:108] = [1,-1]
+M6_in[121, 108:110] = [1,-1]
+M6_in[122, 110:112] = [1,-1]
+M6_in[123, 112:114] = [1,-1]
+M6_in[124, 114:116] = [1,-1]
+M6_in[125, 116:118] = [1,-1]
+M6_in[126, 118:120] = [1,-1]
+M6_in[127, 120:122] = [1,-1]
+M6_in[128, 122:124] = [1,-1]
+M6_out[100:102, 224] = [1,-1]
+M6_out[102:104, 225] = [1,-1]
+M6_out[104:106, 226] = [1,-1]
+M6_out[106:108, 227] = [1,-1]
+M6_out[108:110, 224] = [1,-1]
+M6_out[110:112, 225] = [1,-1]
+M6_out[112:114, 226] = [1,-1]
+M6_out[114:116, 227] = [1,-1]
+M6_out[116:118, 224] = [1,-1]
+M6_out[118:120, 225] = [1,-1]
+M6_out[120:122, 226] = [1,-1]
+M6_out[122:124, 227] = [1,-1]
+
+# Digit decoding, gated independently for the four decimal places.
+M6_in[166, 200:240] = 1
+M6_in[170, 200:240] = 100
+M6_in[165, 240:280] = 1
+M6_in[169, 240:280] = 100
+M6_in[164, 280:320] = 1
+M6_in[168, 280:320] = 100
+M6_in[163, 320:360] = 1
+M6_in[167, 320:360] = 100
+M6_b[200:240] = [-99.5,-99.75,-100.25,-100.5,-100.5,-100.75,-101.25,-101.5,-101.5,-101.75,-102.25,-102.5,-102.5,-102.75,-103.25,-103.5,-103.5,-103.75,-104.25,-104.5,-104.5,-104.75,-105.25,-105.5,-105.5,-105.75,-106.25,-106.5,-106.5,-106.75,-107.25,-107.5,-107.5,-107.75,-108.25,-108.5,-108.5,-108.75,-109.25,-109.5]
+M6_b[240:280] = [-99.5,-99.75,-100.25,-100.5,-100.5,-100.75,-101.25,-101.5,-101.5,-101.75,-102.25,-102.5,-102.5,-102.75,-103.25,-103.5,-103.5,-103.75,-104.25,-104.5,-104.5,-104.75,-105.25,-105.5,-105.5,-105.75,-106.25,-106.5,-106.5,-106.75,-107.25,-107.5,-107.5,-107.75,-108.25,-108.5,-108.5,-108.75,-109.25,-109.5]
+M6_b[280:320] = [-99.5,-99.75,-100.25,-100.5,-100.5,-100.75,-101.25,-101.5,-101.5,-101.75,-102.25,-102.5,-102.5,-102.75,-103.25,-103.5,-103.5,-103.75,-104.25,-104.5,-104.5,-104.75,-105.25,-105.5,-105.5,-105.75,-106.25,-106.5,-106.5,-106.75,-107.25,-107.5,-107.5,-107.75,-108.25,-108.5,-108.5,-108.75,-109.25,-109.5]
+M6_b[320:360] = [-99.5,-99.75,-100.25,-100.5,-100.5,-100.75,-101.25,-101.5,-101.5,-101.75,-102.25,-102.5,-102.5,-102.75,-103.25,-103.5,-103.5,-103.75,-104.25,-104.5,-104.5,-104.75,-105.25,-105.5,-105.5,-105.75,-106.25,-106.5,-106.5,-106.75,-107.25,-107.5,-107.5,-107.75,-108.25,-108.5,-108.5,-108.75,-109.25,-109.5]
+
+M6_out[200:204, 224:228] = [[4,0,3.527685056,1.885586948],[-4,0,-3.527685056,-1.885586948],[-4,0,-3.527685056,-1.885586948],[4,0,3.527685056,1.885586948]]
+M6_out[204:208, 224:228] = [[4,0,3.325878448,2.222280932],[-4,0,-3.325878448,-2.222280932],[-4,0,-3.325878448,-2.222280932],[4,0,3.325878448,2.222280932]]
+M6_out[208:212, 224:228] = [[4,0,3.092041812,2.537573136],[-4,0,-3.092041812,-2.537573136],[-4,0,-3.092041812,-2.537573136],[4,0,3.092041812,2.537573136]]
+M6_out[212:216, 224:228] = [[4,0,2.828427124,2.828427124],[-4,0,-2.828427124,-2.828427124],[-4,0,-2.828427124,-2.828427124],[4,0,2.828427124,2.828427124]]
+M6_out[216:220, 224:228] = [[4,0,2.537573136,3.092041812],[-4,0,-2.537573136,-3.092041812],[-4,0,-2.537573136,-3.092041812],[4,0,2.537573136,3.092041812]]
+M6_out[220:224, 224:228] = [[4,0,2.222280932,3.325878448],[-4,0,-2.222280932,-3.325878448],[-4,0,-2.222280932,-3.325878448],[4,0,2.222280932,3.325878448]]
+M6_out[224:228, 224:228] = [[4,0,1.885586948,3.527685056],[-4,0,-1.885586948,-3.527685056],[-4,0,-1.885586948,-3.527685056],[4,0,1.885586948,3.527685056]]
+M6_out[228:232, 224:228] = [[4,0,1.530733728,3.695518132],[-4,0,-1.530733728,-3.695518132],[-4,0,-1.530733728,-3.695518132],[4,0,1.530733728,3.695518132]]
+M6_out[232:236, 224:228] = [[4,0,1.161138708,3.827761344],[-4,0,-1.161138708,-3.827761344],[-4,0,-1.161138708,-3.827761344],[4,0,1.161138708,3.827761344]]
+M6_out[236:240, 224:228] = [[4,0,0.780361288,3.923141120],[-4,0,-0.780361288,-3.923141120],[-4,0,-0.780361288,-3.923141120],[4,0,0.780361288,3.923141120]]
+
+M6_out[240:244, 224:228] = [[4,0,3.527685056,1.885586948],[-4,0,-3.527685056,-1.885586948],[-4,0,-3.527685056,-1.885586948],[4,0,3.527685056,1.885586948]]
+M6_out[244:248, 224:228] = [[4,0,3.325878448,2.222280932],[-4,0,-3.325878448,-2.222280932],[-4,0,-3.325878448,-2.222280932],[4,0,3.325878448,2.222280932]]
+M6_out[248:252, 224:228] = [[4,0,3.092041812,2.537573136],[-4,0,-3.092041812,-2.537573136],[-4,0,-3.092041812,-2.537573136],[4,0,3.092041812,2.537573136]]
+M6_out[252:256, 224:228] = [[4,0,2.828427124,2.828427124],[-4,0,-2.828427124,-2.828427124],[-4,0,-2.828427124,-2.828427124],[4,0,2.828427124,2.828427124]]
+M6_out[256:260, 224:228] = [[4,0,2.537573136,3.092041812],[-4,0,-2.537573136,-3.092041812],[-4,0,-2.537573136,-3.092041812],[4,0,2.537573136,3.092041812]]
+M6_out[260:264, 224:228] = [[4,0,2.222280932,3.325878448],[-4,0,-2.222280932,-3.325878448],[-4,0,-2.222280932,-3.325878448],[4,0,2.222280932,3.325878448]]
+M6_out[264:268, 224:228] = [[4,0,1.885586948,3.527685056],[-4,0,-1.885586948,-3.527685056],[-4,0,-1.885586948,-3.527685056],[4,0,1.885586948,3.527685056]]
+M6_out[268:272, 224:228] = [[4,0,1.530733728,3.695518132],[-4,0,-1.530733728,-3.695518132],[-4,0,-1.530733728,-3.695518132],[4,0,1.530733728,3.695518132]]
+M6_out[272:276, 224:228] = [[4,0,1.161138708,3.827761344],[-4,0,-1.161138708,-3.827761344],[-4,0,-1.161138708,-3.827761344],[4,0,1.161138708,3.827761344]]
+M6_out[276:280, 224:228] = [[4,0,0.780361288,3.923141120],[-4,0,-0.780361288,-3.923141120],[-4,0,-0.780361288,-3.923141120],[4,0,0.780361288,3.923141120]]
+
+M6_out[280:284, 224:228] = [[4,0,3.527685056,1.885586948],[-4,0,-3.527685056,-1.885586948],[-4,0,-3.527685056,-1.885586948],[4,0,3.527685056,1.885586948]]
+M6_out[284:288, 224:228] = [[4,0,3.325878448,2.222280932],[-4,0,-3.325878448,-2.222280932],[-4,0,-3.325878448,-2.222280932],[4,0,3.325878448,2.222280932]]
+M6_out[288:292, 224:228] = [[4,0,3.092041812,2.537573136],[-4,0,-3.092041812,-2.537573136],[-4,0,-3.092041812,-2.537573136],[4,0,3.092041812,2.537573136]]
+M6_out[292:296, 224:228] = [[4,0,2.828427124,2.828427124],[-4,0,-2.828427124,-2.828427124],[-4,0,-2.828427124,-2.828427124],[4,0,2.828427124,2.828427124]]
+M6_out[296:300, 224:228] = [[4,0,2.537573136,3.092041812],[-4,0,-2.537573136,-3.092041812],[-4,0,-2.537573136,-3.092041812],[4,0,2.537573136,3.092041812]]
+M6_out[300:304, 224:228] = [[4,0,2.222280932,3.325878448],[-4,0,-2.222280932,-3.325878448],[-4,0,-2.222280932,-3.325878448],[4,0,2.222280932,3.325878448]]
+M6_out[304:308, 224:228] = [[4,0,1.885586948,3.527685056],[-4,0,-1.885586948,-3.527685056],[-4,0,-1.885586948,-3.527685056],[4,0,1.885586948,3.527685056]]
+M6_out[308:312, 224:228] = [[4,0,1.530733728,3.695518132],[-4,0,-1.530733728,-3.695518132],[-4,0,-1.530733728,-3.695518132],[4,0,1.530733728,3.695518132]]
+M6_out[312:316, 224:228] = [[4,0,1.161138708,3.827761344],[-4,0,-1.161138708,-3.827761344],[-4,0,-1.161138708,-3.827761344],[4,0,1.161138708,3.827761344]]
+M6_out[316:320, 224:228] = [[4,0,0.780361288,3.923141120],[-4,0,-0.780361288,-3.923141120],[-4,0,-0.780361288,-3.923141120],[4,0,0.780361288,3.923141120]]
+
+M6_out[320:324, 224:228] = [[4,0,3.527685056,1.885586948],[-4,0,-3.527685056,-1.885586948],[-4,0,-3.527685056,-1.885586948],[4,0,3.527685056,1.885586948]]
+M6_out[324:328, 224:228] = [[4,0,3.325878448,2.222280932],[-4,0,-3.325878448,-2.222280932],[-4,0,-3.325878448,-2.222280932],[4,0,3.325878448,2.222280932]]
+M6_out[328:332, 224:228] = [[4,0,3.092041812,2.537573136],[-4,0,-3.092041812,-2.537573136],[-4,0,-3.092041812,-2.537573136],[4,0,3.092041812,2.537573136]]
+M6_out[332:336, 224:228] = [[4,0,2.828427124,2.828427124],[-4,0,-2.828427124,-2.828427124],[-4,0,-2.828427124,-2.828427124],[4,0,2.828427124,2.828427124]]
+M6_out[336:340, 224:228] = [[4,0,2.537573136,3.092041812],[-4,0,-2.537573136,-3.092041812],[-4,0,-2.537573136,-3.092041812],[4,0,2.537573136,3.092041812]]
+M6_out[340:344, 224:228] = [[4,0,2.222280932,3.325878448],[-4,0,-2.222280932,-3.325878448],[-4,0,-2.222280932,-3.325878448],[4,0,2.222280932,3.325878448]]
+M6_out[344:348, 224:228] = [[4,0,1.885586948,3.527685056],[-4,0,-1.885586948,-3.527685056],[-4,0,-1.885586948,-3.527685056],[4,0,1.885586948,3.527685056]]
+M6_out[348:352, 224:228] = [[4,0,1.530733728,3.695518132],[-4,0,-1.530733728,-3.695518132],[-4,0,-1.530733728,-3.695518132],[4,0,1.530733728,3.695518132]]
+M6_out[352:356, 224:228] = [[4,0,1.161138708,3.827761344],[-4,0,-1.161138708,-3.827761344],[-4,0,-1.161138708,-3.827761344],[4,0,1.161138708,3.827761344]]
+M6_out[356:360, 224:228] = [[4,0,0.780361288,3.923141120],[-4,0,-0.780361288,-3.923141120],[-4,0,-0.780361288,-3.923141120],[4,0,0.780361288,3.923141120]]
+
+# Initial single-token capital facts.
+E[["australia","canada","china","france","germany","india","italy","japan","egypt","netherlands","zealand","portugal","russia","korea","spain","sweden","switzerland","turkey","britain","england","brazil"], 22:24] = [1,1]
+E[["australia","canada","china","france","germany","india","italy","japan","egypt","netherlands","zealand","portugal","russia","korea","spain","sweden","switzerland","turkey","britain","england","brazil"], 36] = 1
+E["australia", 24:28] = [-0.258819045,-0.965925826,-0.634393284,0.773010453]
+E["canada", 24:28] = [-0.258819045,-0.965925826,-0.980785280,0.195090322]
+E["china", 24:28] = [-0.258819045,-0.965925826,-1,0]
+E["france", 24:28] = [-0.258819045,-0.965925826,-0.382683432,-0.923879533]
+E["germany", 24:28] = [-0.258819045,-0.965925826,-0.195090322,-0.980785280]
+E["india", 24:28] = [-0.258819045,-0.965925826,0.290284677,-0.956940336]
+E["italy", 24:28] = [-0.258819045,-0.965925826,0.773010453,-0.634393284]
+E["japan", 24:28] = [-0.258819045,-0.965925826,0.881921264,-0.471396737]
+E["egypt", 24:28] = [-0.258819045,-0.965925826,-0.773010453,-0.634393284]
+E["netherlands", 24:28] = [-0.130526192,-0.991444861,0.195090322,0.980785280]
+E["zealand", 24:28] = [-0.130526192,-0.991444861,0.098017140,0.995184727]
+E["portugal", 24:28] = [-0.130526192,-0.991444861,-0.831469612,0.555570233]
+E["russia", 24:28] = [-0.130526192,-0.991444861,-0.956940336,0.290284677]
+E["korea", 24:28] = [-0.130526192,-0.991444861,-0.831469612,-0.555570233]
+E["spain", 24:28] = [-0.130526192,-0.991444861,-0.773010453,-0.634393284]
+E["sweden", 24:28] = [-0.130526192,-0.991444861,-0.555570233,-0.831469612]
+E["switzerland", 24:28] = [-0.130526192,-0.991444861,-0.471396737,-0.881921264]
+E["turkey", 24:28] = [-0.130526192,-0.991444861,0,-1]
+E[["britain","england"], 24:28] = [-0.130526192,-0.991444861,0.382683432,-0.923879533]
+E["brazil", 24:28] = [-0.130526192,-0.991444861,0.923879533,-0.382683432]
+```
+
+NONZERO WEIGHTS NOW, by tensor: E 24158, Q1 6, K1 5, V1 14, O1 14, M1_in 239, M1_b 213, M1_out 218, Q2 16, K2 21, V2 44, O2 44, M2_in 199, M2_b 192, M2_out 195, Q3 15, K3 14, V3 12, O3 12, M3_in 3118, M3_b 736, M3_out 741, Q4 2, K4 2, V4 5, O4 5, M4_in 218, M4_b 210, M4_out 420, M5_in 187, M5_b 83, M5_out 121, M6_in 455, M6_b 232, M6_out 671, U 10568

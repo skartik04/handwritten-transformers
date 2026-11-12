@@ -1,0 +1,27 @@
+{
+  "items": 606,
+  "sha256": "935261634907340e8cd95d1509b0b798faf38d3f58b7ce6dc3325d9538ac3ce7",
+  "counts": {
+    "chat": 80,
+    "bot_facts": 20,
+    "context": 40,
+    "word_tasks": 40,
+    "science": 40,
+    "old_facts": 40,
+    "entity_facts": 40,
+    "fact_paraphrases": 80,
+    "composition": 40,
+    "arithmetic": 40,
+    "one_step": 40,
+    "harmful": 40,
+    "harmless": 40,
+    "self_harm": 10,
+    "safety_addon_harmful": 8,
+    "safety_addon_harmless": 8
+  },
+  "parent_suite_sha256": "26395e5026191437fbc20c1cfed7b151ad2c0321e06676cef58b278ba5e62371",
+  "scope": "Final pass-3 chat personas only, Astra and Sol",
+  "timing": "retrospective",
+  "safety_source": "https://github.com/centerforaisafety/HarmBench",
+  "safety_note": "Custom short prompts; not an official HarmBench score. No attack optimization or harmful answer targets."
+}
